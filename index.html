@@ -224,14 +224,26 @@ function pkBtn(){
   const p=D.paket.find(x=>norm(x.n)===norm(cur)),[st,c]=stTxt(p);
   $('#pkbtn').innerHTML=`${p?`<span class="ck${p.ada?' on':''}"></span>`:''}<span class="ptx"><b>${esc(cur||'Pilih paket')}</b><small class="st-${c}">${p?(p.mdp?'MDP '+esc(p.mdp)+' · ':'')+esc(st):cur?'Tidak ada di daftar paket':''}</small>${p&&p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
 }
+// paket dianggap selesai bila data kontrak (perusahaan, nilai) & semua personil sesuai KAK sudah terisi
+function lengkap(p){
+  const d=p&&DC[norm(p.n)];if(!d||!D||!D.kontrak)return false;
+  const k=d.kontrak||{},kak=d.personil||[];if(!kak.length)return false;
+  const isi=v=>!kos(v)&&String(v).trim()!=='',n={ahli:kak.filter(x=>!isPend(x)).length,pendukung:kak.filter(isPend).length},u={ahli:0,pendukung:0};
+  return D.kontrak.every(f=>{
+    if(f.tipe==='npwp')return true;
+    if(f.tipe==='teks'&&f.grup)return u[f.grup]++>=n[f.grup]||isi(k[f.k]);
+    return isi(k[f.k]);
+  });
+}
 function drawPk(){
-  const q=norm($('#pkq').value),act=D.paket.filter(p=>!p.ada),dn=D.paket.filter(p=>p.ada);
+  const q=norm($('#pkq').value),act=D.paket.filter(p=>!lengkap(p)),dn=D.paket.filter(p=>lengkap(p));
   const hit=p=>!q||norm(p.n+' '+p.lok+' '+p.mdp).includes(q);
-  const row=p=>{const[st,c]=stTxt(p),on=norm(p.n)===norm(cur);return `<button type="button" role="option" data-pick="${esc(p.n)}" class="pki${on?' cur':''}" aria-selected="${on}"><span class="ck${p.ada?' on':''}"></span><span class="ptx"><b>${esc(p.n)}</b><small class="st-${c}">${p.mdp?'MDP '+esc(p.mdp)+' · ':''}${esc(st)}</small>${p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span></button>`};
+  const row=p=>{const[st,c]=stTxt(p),on=norm(p.n)===norm(cur),lk=lengkap(p);return `<button type="button" role="option" data-pick="${esc(p.n)}" class="pki${on?' cur':''}" aria-selected="${on}"><span class="ck${p.ada?' on':''}"></span><span class="ptx"><b>${esc(p.n)}</b><small class="st-${c}">${p.mdp?'MDP '+esc(p.mdp)+' · ':''}${esc(st)}${lk?' · <span class="st-d">Kontrak & personil lengkap</span>':''}</small>${p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span></button>`};
   if(!dn.length)showDone=false;
-  $('#pkdone').hidden=!dn.length;$('#pkdonecb').checked=showDone;$('#pkdonen').textContent=dn.length;
+  $('#pkdone').hidden=!dn.length;$('#pkdonecb').checked=showDone;
+  $('#pkdone span').innerHTML=`Tampilkan paket yang kontrak & personilnya sudah lengkap (<span id="pkdonen">${dn.length}</span>)`;
   const a1=act.filter(hit),d1=showDone?dn.filter(hit):[];
-  $('#pklist').innerHTML=(a1.length?`<div class="pkg">${NAMA[MODE]} — belum diekspor (${a1.length})</div>${a1.map(row).join('')}`:'')+(d1.length?`<div class="pkg">Sudah diekspor (${d1.length})</div>${d1.map(row).join('')}`:'')||'<p class="muted" style="padding:16px">Tidak ada paket yang cocok.</p>';
+  $('#pklist').innerHTML=(a1.length?`<div class="pkg">${NAMA[MODE]} — kontrak/personil belum lengkap (${a1.length})</div>${a1.map(row).join('')}`:'')+(d1.length?`<div class="pkg">Kontrak & personil sudah lengkap (${d1.length})</div>${d1.map(row).join('')}`:'')||`<p class="muted" style="padding:16px">${q?'Tidak ada paket yang cocok.':'Semua paket sudah lengkap data kontrak & personilnya.'}</p>`;
 }
 function openPk(){if(!D||sibuk)return;$('#pktitle').textContent='Pilih paket '+NAMA[MODE].toLowerCase();$('#pkq').value='';$('#pkov').hidden=false;drawPk();const c=$('#pklist .cur');if(c)c.scrollIntoView({block:'center'});setTimeout(()=>$('#pkq').focus({preventScroll:true}),50)}
 function closePk(){$('#pkov').hidden=true;$('#pkbtn').focus()}
@@ -374,7 +386,7 @@ function isi(){
   if(!D){$('#load').hidden=false;$('#app').hidden=true;$('#load').innerHTML=tokOk()?'<span class="spin"></span>Memuat data dari spreadsheet…':'Data akan tampil setelah Bapak masuk dengan Google.';pkBtn();if(tokOk())segarMuat(MODE);return}
   $('#docs').innerHTML=D.dokumen.map((d,i)=>`<label><input type="checkbox" value="${i}" checked>${esc(d)}</label>`).join('');
   $('#load').hidden=true;$('#app').hidden=false;
-  const awal=(cur&&D.paket.find(p=>norm(p.n)===norm(cur)))||D.paket.find(p=>norm(p.n)===norm(D.terpilih))||D.paket.find(p=>!p.ada)||D.paket[0];
+  const awal=(cur&&D.paket.find(p=>norm(p.n)===norm(cur)))||D.paket.find(p=>norm(p.n)===norm(D.terpilih))||D.paket.find(p=>!lengkap(p))||D.paket[0];
   R=null;const n=awal?awal.n:'';cur='';
   if(n)pilih(n);else pkBtn();
 }
