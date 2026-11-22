@@ -2188,6 +2188,7 @@ document.querySelectorAll('.cnt').forEach(b => b.addEventListener('click', () =>
 $('chips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; katF = b.dataset.k === 'Semua' ? null : b.dataset.k; render(); });
 $('kata').addEventListener('input', () => { kataManual = true; });
 $('ulang').addEventListener('click', run);
+if (!SAMPLE) $('demo').hidden = true;
 $('demo').addEventListener('click', () => { srcBuf = null; model = SAMPLE; fname = 'Contoh'; kataManual = false; run(); });
 $('copy').addEventListener('click', async () => {
   if (!res) return;
