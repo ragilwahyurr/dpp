@@ -222,8 +222,12 @@ const run=(fn,...a)=>api(MODE,fn,a);
 function pkBtn(){
   if(!D){$('#pkbtn').innerHTML='<span class="ptx"><b>Memuat paket…</b></span>';return}
   const p=D.paket.find(x=>norm(x.n)===norm(cur)),[st,c]=stTxt(p);
-  $('#pkbtn').innerHTML=`${p?`<span class="ck${p.ada?' on':''}"></span>`:''}<span class="ptx"><b>${esc(cur||'Pilih paket')}</b><small class="st-${c}">${p?(p.mdp?'MDP '+esc(p.mdp)+' · ':'')+esc(st):cur?'Tidak ada di daftar paket':''}</small>${p&&p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+  $('#pkbtn').innerHTML=`${p?`<span class="ck${p.ada?' on':''}"></span>`:''}<span class="ptx"><b>${esc(cur||'Pilih paket')}</b><small class="st-${c}">${p?(adm(p)?'Admin '+esc(adm(p))+' · ':'')+esc(st):cur?'Tidak ada di daftar paket':''}</small>${p&&p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
 }
+// nama admin per paket dari spreadsheet PROGRESS (sheet "paket pl")
+let ADM=ls.get('dpp_admin')||{};
+const adm=p=>p&&(ADM[MODE]||{})[norm(p.n)]||'';
+async function bacaAdmin(){try{const r=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/1nHH_81Mjy4h9-1We0Kq51PhLNlnn474k24wRTvset-g/values/'+encodeURIComponent("'paket pl'!C2:Z400"))).json();const o={fisik:{},perencanaan:{},pengawasan:{}};(r.values||[]).forEach(x=>{const a=(i,j,m)=>{const n=norm(x[i]),v=String(x[j]||'').trim();if(n&&v)o[m][n]=v};a(0,4,'fisik');a(11,14,'perencanaan');a(20,23,'pengawasan')});ADM=o;ls.set('dpp_admin',o);if(D){pkBtn();if(!$('#pkov').hidden)drawPk()}}catch(e){}}
 // paket dianggap selesai bila data kontrak (perusahaan, nilai) & semua personil sesuai KAK sudah terisi
 function lengkap(p){
   const d=p&&DC[norm(p.n)];if(!d||!D||!D.kontrak)return false;
@@ -237,8 +241,8 @@ function lengkap(p){
 }
 function drawPk(){
   const q=norm($('#pkq').value),act=D.paket.filter(p=>!lengkap(p)),dn=D.paket.filter(p=>lengkap(p));
-  const hit=p=>!q||norm(p.n+' '+p.lok+' '+p.mdp).includes(q);
-  const row=p=>{const[st,c]=stTxt(p),on=norm(p.n)===norm(cur),lk=lengkap(p);return `<button type="button" role="option" data-pick="${esc(p.n)}" class="pki${on?' cur':''}" aria-selected="${on}"><span class="ck${p.ada?' on':''}"></span><span class="ptx"><b>${esc(p.n)}</b><small class="st-${c}">${p.mdp?'MDP '+esc(p.mdp)+' · ':''}${esc(st)}${lk?' · <span class="st-d">Kontrak & personil lengkap</span>':''}</small>${p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span></button>`};
+  const hit=p=>!q||norm(p.n+' '+p.lok+' '+p.mdp+' '+adm(p)).includes(q);
+  const row=p=>{const[st,c]=stTxt(p),on=norm(p.n)===norm(cur),lk=lengkap(p);return `<button type="button" role="option" data-pick="${esc(p.n)}" class="pki${on?' cur':''}" aria-selected="${on}"><span class="ck${p.ada?' on':''}"></span><span class="ptx"><b>${esc(p.n)}</b><small class="st-${c}">${adm(p)?'Admin '+esc(adm(p))+' · ':''}${esc(st)}${lk?' · <span class="st-d">Kontrak & personil lengkap</span>':''}</small>${p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span></button>`};
   if(!dn.length)showDone=false;
   $('#pkdone').hidden=!dn.length;$('#pkdonecb').checked=showDone;
   $('#pkdone span').innerHTML=`Tampilkan paket yang kontrak & personilnya sudah lengkap (<span id="pkdonen">${dn.length}</span>)`;
@@ -420,7 +424,7 @@ async function bacaCache(m){
 }
 let online=false;
 async function mulaiOnline(){
-  if(online)return;online=true;
+  if(online)return;online=true;bacaAdmin();
   const hasil=await Promise.all(MODES.map(m=>bacaCache(m).catch(()=>null)));
   // segarkan mode aktif di latar (data terbaru dari spreadsheet)
   segarMuat(MODE);if(cur&&D)segarDetail(MODE,cur);
