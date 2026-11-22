@@ -108,13 +108,19 @@ textarea{min-height:70px;resize:vertical}
 .bar small{display:block;font-size:13px;color:#dbe3ff}
 .top .in{flex-wrap:wrap}
 .top .in>div:not(.mseg){flex:1 1 0}
-.mseg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#ffffff1a;border-radius:12px;padding:4px;flex:0 0 100%;max-width:560px;margin-top:14px}
+.mseg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:#ffffff1a;border-radius:12px;padding:4px;flex:0 0 100%;max-width:640px;margin-top:14px}
 .mseg button{border:0;background:transparent;color:#dbe3ff;min-height:46px;font:600 15px Inter,sans-serif;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.mseg button{white-space:nowrap}@media(max-width:560px){.mseg button{font-size:13px;gap:4px}.mseg button svg{width:16px;height:16px}}
 .mseg button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .mseg button[aria-pressed=true]{background:var(--acc);color:var(--navy)}
 .mseg button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 body.m-periksa .fx,body.m-periksa .bar,body.m-periksa .onlyfix{display:none!important}
 body.m-perbaiki .onlycheck{display:none!important}
+body.m-rab .spekonly,body.m-rab .onlycheck,body.m-rab .onlyfix,body.m-rab .bar{display:none!important}
+body:not(.m-rab) .onlyrab{display:none!important}
+.rabmeta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:6px 0 12px;font-size:14px}.rabmeta dt{color:var(--mut)}.rabmeta dd{margin:0;font-weight:500}
+.f .lok{font-size:13px;color:var(--mut)}.f .sr{font-size:14px;color:var(--ink);background:var(--soft);border-radius:8px;padding:6px 10px;margin:0}
+.ttd{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ttd input{width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:15px Inter;background:var(--field)}.ttd label{font-size:13px;color:var(--mut)}
 .fixsum{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .fixsum div{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
 .fixsum b{display:block;font:600 24px "Space Grotesk",sans-serif;color:var(--navy)}.fixsum .m b{color:var(--bad)}
@@ -177,8 +183,8 @@ body.m-perbaiki .onlycheck{display:none!important}
 </head>
 <body>
 <header class="top"><div class="in"><img class="mark" src="data:image/png;base64,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" alt="Logo Kementerian PU"><div><b>Koreksi Spek Teknis</b><small>Dinas Pekerjaan Umum dan Tata Ruang · Kabupaten Paser</small></div>
-<div class="mseg" role="group" aria-label="Menu utama"><button type="button" data-mode="periksa" aria-pressed="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>Periksa Berkas</button><button type="button" data-mode="perbaiki" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>Perbaiki Berkas</button></div></div></header>
-<section class="band">
+<div class="mseg" role="group" aria-label="Menu utama"><button type="button" data-mode="periksa" aria-pressed="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>Periksa Berkas</button><button type="button" data-mode="perbaiki" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>Perbaiki Berkas</button><button type="button" data-mode="rab" aria-pressed="false"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Periksa RAB</button></div></div></header>
+<section class="band spekonly">
   <p class="lead" id="lead"></p>
   <div class="topg">
     <div>
@@ -283,6 +289,38 @@ body.m-perbaiki .onlycheck{display:none!important}
     <li><b>Perbaikan</b>Setiap temuan punya pilihan perbaikan. Perbaikan diterapkan ke file asli dengan format tetap utuh, lalu file baru diperiksa ulang. "Perbaikan cepat" hanya memilih yang aman: ejaan dan nama peraturan.</li>
   </ul>
   <p class="note">Ini alat bantu verifikasi. Temuan tetap perlu dicek manual. Batas nilai mengacu Pasal 38 Perpres 46/2025 dan Permen PUPR 10/2021; ubah di Pengaturan jika aturan berubah.</p>
+</section>
+<section class="band onlyrab" id="rabsec">
+  <div class="topg">
+    <div>
+      <label class="drop" id="rcdrop" for="rcfile">
+        <input type="file" id="rcfile" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+        <div class="doc"><div class="sheet xl"><i style="top:14px"></i><i style="top:24px"></i><i style="top:34px"></i><i style="top:44px"></i><b>Rp</b></div>
+          <div><strong id="rclbl">Pilih atau seret file RAB konsultan (.xlsx / .xls)</strong><br><small>Diperiksa: hitungan &amp; total, PPN, pembulatan, terbilang, harga &amp; mark-up, AHSP terbaru, kesesuaian dengan DPA/FISIK MURNI dan spek. File tidak dikirim ke mana pun.</small></div></div>
+      </label>
+      <div class="err" id="rcerr"></div>
+    </div>
+    <div class="card sum" aria-live="polite">
+      <h2>Ringkasan pemeriksaan RAB</h2>
+      <div class="file" id="rcname"></div>
+      <label class="lab" for="rcsheet" style="font-size:13px;color:var(--mut)">Sheet RAB yang diperiksa</label><select id="rcsheet" style="width:100%;min-height:42px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:15px Inter;background:var(--field);margin:4px 0 8px"><option>—</option></select>
+      <dl class="rabmeta" id="rcmeta"></dl>
+      <div class="counts">
+        <button class="cnt k" data-rsev="kritis" aria-pressed="false"><span class="num" id="rnk">0</span><span>Kritis</span></button>
+        <button class="cnt p" data-rsev="penting" aria-pressed="false"><span class="num" id="rnp">0</span><span>Penting</span></button>
+        <button class="cnt i" data-rsev="info" aria-pressed="false"><span class="num" id="rni">0</span><span>Info</span></button>
+      </div>
+      <details class="set"><summary>Penanda tangan catatan</summary><div class="ttd">
+        <div><label for="ttdJab">Jabatan</label><input id="ttdJab" placeholder="Tim Teknis"></div>
+        <div><label for="ttdNama">Nama</label><input id="ttdNama"></div>
+        <div><label for="ttdNip">NIP</label><input id="ttdNip" inputmode="numeric"></div>
+      </div></details>
+      <button class="b pri autobtn" id="rcdoc" type="button" disabled>Unduh catatan koreksi (.docx)</button>
+      <div class="tools"><button class="b" id="rccopy" type="button" disabled>Salin catatan</button></div>
+    </div>
+  </div>
+  <h2 id="rcttl" style="margin-top:22px">Temuan RAB</h2>
+  <div class="list" id="rclist"><div class="empty">Belum ada file RAB.</div></div>
 </section>
 <div class="bar" id="bar"><div><b id="nsel">0 perbaikan dipilih</b><small id="barnote">Cek data paket di atas, lalu klik Perbaiki.</small></div><div class="tools"><button class="b" id="quick" type="button" hidden>Pilih perbaikan cepat</button><button class="b go" id="apply" type="button">Perbaiki</button></div></div>
 <div id="rv" hidden role="dialog" aria-modal="true" aria-labelledby="rvt"><div id="rvbox"><div class="rvh"><b id="rvt">Perbaikan sesuai aturan</b><small id="rvs"></small></div><div class="rvb" id="rvb"></div><div class="rvf"><button class="b" id="rvclose" type="button">Tinjau dulu di daftar</button><button class="b pri" id="rvapply" type="button">Perbaiki</button></div></div></div>
@@ -773,12 +811,17 @@ function parseXlsBuf(buf) {
   for (const r of recs) {
     if (r.t === 0x0809) { bofN++; if (bofN > 1) { cur = { name: names[sheets.length] || 'Sheet' + (sheets.length + 1), cells: {} }; sheets.push(cur); } continue; }
     if (!cur) continue;
-    const put = (row, col, v) => { if (v == null || !String(v).trim()) return; (cur.cells[row] = cur.cells[row] || {})[col] = String(v).trim(); };
+    const put = (row, col, v) => { if (v == null || !String(v).trim()) return; (cur.cells[row] = cur.cells[row] || {})[col] = typeof v === 'number' ? v : String(v).trim(); };
+    const rk = x => { let n; if (x & 2) n = x >> 2; else { const b8 = new DataView(new ArrayBuffer(8)); b8.setUint32(4, x & 0xFFFFFFFC, true); b8.setUint32(0, 0, true); n = b8.getFloat64(0, true); } return x & 1 ? n / 100 : n; };
     if (r.t === 0x00FD) put(wv.getUint16(r.o, true), wv.getUint16(r.o + 2, true), sst[wv.getUint32(r.o + 6, true)]);
+    else if (r.t === 0x0203) put(wv.getUint16(r.o, true), wv.getUint16(r.o + 2, true), wv.getFloat64(r.o + 6, true));
+    else if (r.t === 0x027E) put(wv.getUint16(r.o, true), wv.getUint16(r.o + 2, true), rk(wv.getInt32(r.o + 6, true)));
+    else if (r.t === 0x00BD) { const row = wv.getUint16(r.o, true), c0 = wv.getUint16(r.o + 2, true), n = (r.l - 6) / 6; for (let k = 0; k < n; k++) put(row, c0 + k, rk(wv.getInt32(r.o + 4 + k * 6 + 2, true))); }
+    else if (r.t === 0x0006) { const row = wv.getUint16(r.o, true), col = wv.getUint16(r.o + 2, true); if (wv.getUint16(r.o + 12, true) !== 0xFFFF) put(row, col, wv.getFloat64(r.o + 6, true)); else if (wb[r.o + 6] === 0) { const nx = recs[recs.indexOf(r) + 1]; if (nx && nx.t === 0x0207) { const cch = wv.getUint16(nx.o, true), f = wb[nx.o + 2]; put(row, col, f & 1 ? dec16(nx.o + 3, cch) : dec8(nx.o + 3, cch)); } } }
     else if (r.t === 0x0204 || r.t === 0x00D6) { const cch = wv.getUint16(r.o + 6, true), f = wb[r.o + 8]; put(wv.getUint16(r.o, true), wv.getUint16(r.o + 2, true), f & 1 ? dec16(r.o + 9, cch) : dec8(r.o + 9, cch)); }
     else if (r.t === 0x000A) cur = null;
   }
-  return sheets.map(s => ({ name: s.name, rows: Object.keys(s.cells).map(Number).sort((a, b) => a - b).map(rw => { const c = s.cells[rw]; return Object.keys(c).map(Number).sort((a, b) => a - b).map(k => c[k]); }) }));
+  return sheets.map(s => { const rs = Object.keys(s.cells).map(Number).sort((a, b) => a - b); return { name: s.name, rows: rs.map(rw => { const c = s.cells[rw]; return Object.keys(c).map(Number).sort((a, b) => a - b).map(k => String(c[k])); }), grid: rs.map(rw => ({ r: rw + 1, c: Object.assign({}, s.cells[rw]), f: {} })) }; });
 }
 
 /* ---------- Baca RAB (.xlsx): nama & ukuran bahan ---------- */
@@ -802,18 +845,23 @@ async function parseXlsx(buf) {
   const out = [];
   for (const s of sheets) {
     if (!s.path || !names.includes(s.path)) continue;
-    const x = await unzipEntry(buf, s.path), rows = [];
-    for (const rm of x.matchAll(/<row[^>]*>([\s\S]*?)<\/row>/g)) {
-      const cells = [];
-      for (const cm of rm[1].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-        const a = cm[1], body = cm[2] || '', t = (a.match(/t="([^"]*)"/) || [])[1];
+    const x = await unzipEntry(buf, s.path), rows = [], grid = [];
+    const colIdx = ref => { const m = String(ref).match(/^([A-Z]+)/); let n = 0; if (m) for (const ch of m[1]) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+    for (const rm of x.matchAll(/<row([^>]*)>([\s\S]*?)<\/row>/g)) {
+      const cells = [], rn = +((rm[1].match(/\br="(\d+)"/) || [])[1] || 0), hid = /hidden="(1|true)"/.test(rm[1]), g = { r: rn, c: {}, f: {}, hidden: hid };
+      let auto = 0;
+      for (const cm of rm[2].matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+        const a = cm[1], body = cm[2] || '', t = (a.match(/t="([^"]*)"/) || [])[1], ref = (a.match(/\br="([A-Z]+\d+)"/) || [])[1];
+        const ci = ref ? colIdx(ref) : auto; auto = ci + 1;
         let v = (body.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
         if (t === 's') v = ss[+v]; else if (t === 'inlineStr') v = unx([...body.matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(q => q[1]).join('')); else if (v != null) v = unx(v);
-        if (v != null && String(v).trim()) cells.push(String(v).trim());
+        const fm = (body.match(/<f[^>]*>([\s\S]*?)<\/f>/) || [])[1]; if (fm) g.f[ci] = unx(fm);
+        if (v != null && String(v).trim()) { cells.push(String(v).trim()); g.c[ci] = (t === 's' || t === 'inlineStr' || t === 'str') ? String(v) : (isNaN(+v) ? String(v) : +v); }
       }
       if (cells.length) rows.push(cells);
+      if (Object.keys(g.c).length) grid.push(g);
     }
-    out.push({ name: s.name, rows });
+    out.push({ name: s.name, rows, grid });
   }
   return out;
 }
@@ -1741,7 +1789,300 @@ function analyze(model, opt = {}) {
   return { findings: F, meta: { uraian: uraianAsli.slice(), uraianPakai: uraianPekerjaan(paras).slice(), namaPaket, paket: PK, tkdnJenis: TP ? TP.jenis : '', judul: judul.replace(/\s+/g, ' ').trim().slice(0, 160), paragraf: paras.filter(p => p.tbl < 0).length, tabel: tables.length, hps, pagu, kataLuar } };
 }
 
-return { saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
+/*RAB*/
+/* ---------- Pemeriksaan RAB konsultan ---------- */
+const AHSP_TERBARU = { label: 'SE Dirjen Bina Konstruksi Nomor 47/SE/Dk/2026', permen: 'Permen PUPR Nomor 8 Tahun 2023' };
+const colHuruf = i => { let s = '', n = i + 1; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+const sel = (sh, r, c) => `${sh.trim()}!${colHuruf(c)}${r}`;
+const rp0 = v => 'Rp' + Math.round(v).toLocaleString('id-ID');
+const isNum = v => typeof v === 'number' && isFinite(v);
+const txt = v => v == null ? '' : String(v).replace(/\s+/g, ' ').trim();
+const beda = (a, b, tol) => Math.abs(a - b) > Math.max(tol == null ? 1 : tol, Math.abs(b) * 1e-6);
+
+function cariHeaderRab(g) {
+  for (let k = 0; k < Math.min(g.length, 40); k++) {
+    const c = g[k].c, ks = Object.keys(c).map(Number), T = j => txt(c[j]).toLowerCase();
+    const u = ks.find(j => /uraian|jenis pekerjaan/.test(T(j))), hs = ks.find(j => /harga\s*satuan/.test(T(j))), jm = ks.find(j => /jumlah/.test(T(j)) && j !== hs);
+    if (u == null || hs == null || jm == null) continue;
+    return { baris: k, no: ks.find(j => /^no\.?$/.test(T(j))), kode: ks.find(j => /kode|analis|ahsp/.test(T(j))), uraian: u, sat: ks.find(j => /^sat/.test(T(j))), vol: ks.find(j => /vol/.test(T(j))), hs, jm };
+  }
+  return null;
+}
+function identitasRab(g) {
+  const out = {};
+  for (const row of g.slice(0, 16)) {
+    const ks = Object.keys(row.c).map(Number).sort((a, b) => a - b);
+    for (let i = 0; i < ks.length; i++) {
+      const lab = txt(row.c[ks[i]]).toLowerCase().replace(/[.:]/g, '').trim();
+      const key = /^(nama\s+)?(pekerjaan|paket|kegiatan pekerjaan)$/.test(lab) ? 'nama' : /^lokasi$/.test(lab) ? 'lokasi' : /^tahun( anggaran)?$/.test(lab) ? 'tahun' : /^program$/.test(lab) ? 'program' : /^kegiatan$/.test(lab) ? 'kegiatan' : /^sub\.?\s*kegiatan$/.test(lab) ? 'sub' : null;
+      if (!key || out[key]) continue;
+      const v = ks.slice(i + 1).map(j => txt(row.c[j])).find(x => x && x !== ':');
+      if (v) out[key] = { v: v.replace(/^:\s*/, ''), r: row.r, c: ks[ks.indexOf(ks[i]) + 1] ?? ks[i] };
+    }
+  }
+  return out;
+}
+function teksBaris(row, H) {
+  const ks = Object.keys(row.c).map(Number).filter(j => j > (H.no ?? -1) && j < (H.sat ?? H.vol ?? H.hs) && j !== H.kode).sort((a, b) => a - b);
+  return ks.map(j => row.c[j]).filter(v => typeof v === 'string' && /[a-z]/i.test(v)).map(txt).join(' ');
+}
+
+function analyzeRab(sheets, opt) {
+  const O = opt || {}, F = [];
+  const add = (tingkat, kat, msg, lok, saran) => F.push({ tingkat, kat, msg, lok: lok || '', saran: saran || '' });
+  const kandidat = sheets.map(s => ({ s, H: cariHeaderRab(s.grid || []) })).filter(x => x.H && !/^(rekap|ahsp|analisa|anls|bahan|upah|ssh|hspk|backup|rek )/i.test(x.s.name.trim()));
+  if (!kandidat.length) return { meta: null, findings: [{ tingkat: 'kritis', kat: 'Berkas', msg: 'Sheet RAB tidak ditemukan (butuh kolom Uraian, Harga Satuan, dan Jumlah).', lok: '', saran: '' }] };
+  // pilih sheet RAB paket ini
+  const nmPaket = O.nama || '';
+  kandidat.forEach(k => { k.id = identitasRab(k.s.grid); k.skor = nmPaket && k.id.nama ? dice(k.id.nama.v, nmPaket) : 0; });
+  kandidat.sort((a, b) => b.skor - a.skor || b.s.grid.length - a.s.grid.length);
+  if (O.sheet) { const k = kandidat.findIndex(x => x.s.name === O.sheet); if (k > 0) kandidat.unshift(...kandidat.splice(k, 1)); }
+  const { s: S, H, id } = kandidat[0], sh = S.name, g = S.grid;
+  const meta = { sheetAsli: sh, sheet: sh.trim(), nama: id.nama?.v || '', lokasi: id.lokasi?.v || '', tahun: id.tahun?.v || '', program: id.program?.v || '', kegiatan: id.kegiatan?.v || '', sub: id.sub?.v || '' };
+
+  // ---- 1. Hitungan item, subtotal, total
+  let items = [], seksi = [], cur = null, subs = [], totalRow = null, nolVol = [], tanpaUraian = [], ls = [], labelSeksi = {};
+  const body = g.slice(H.baris + 1);
+  for (const row of body) {
+    const c = row.c, t = teksBaris(row, H), noV = H.no != null ? txt(c[H.no]) : '', vol = H.vol != null ? c[H.vol] : undefined, hs = c[H.hs], jm = c[H.jm];
+    const semua = Object.values(c).map(txt).join(' ');
+    if (/jumlah\s*(total|keseluruhan)|total\s*(keseluruhan|biaya|harga)|grand\s*total|dibulatkan|terbilang|\bppn\b|pajak/i.test(semua)) {
+      if (/jumlah\s*total|total|jumlah\s*keseluruhan/i.test(semua) && !/ppn|pajak/i.test(semua) && isNum(jm)) totalRow = { r: row.r, v: jm };
+      else if (subs.length && subs[subs.length - 1].r < row.r) { const last = subs[subs.length - 1]; const sumSub = subs.slice(0, -1).reduce((a, x) => a + x.v, 0), sumIt = items.reduce((a, x) => a + (x.jm || 0), 0); if (!beda(last.v, sumIt, 2) || !beda(last.v, sumSub, 2) || !last.items.length) { subs.pop(); totalRow = { r: last.r, v: last.v }; } }
+      break;
+    }
+    if (/^(sub\s*)?(jumlah|total|sub\s*total)/i.test(semua.replace(/^\W+/, '')) || (isNum(jm) && !isNum(hs) && !isNum(vol) && !t)) { if (isNum(jm)) subs.push({ r: row.r, v: jm, items: items.filter(x => x.seksi === cur), cur }); continue; }
+    const romawi = /^([IVX]+|[A-Z])\.?$/.test(noV) || (!noV && /^([IVX]+|[A-Z])\.?\s+[A-Z]/.test(t));
+    if (romawi && !isNum(hs) && t && t === t.toUpperCase()) { cur = { r: row.r, label: noV || t.split(/\s/)[0], judul: t.replace(/^([IVX]+|[A-Z])\.?\s+/, '') }; seksi.push(cur); const L = cur.label.replace(/\.$/, ''); (labelSeksi[L] = labelSeksi[L] || []).push(cur); continue; }
+    if (!isNum(hs) && !isNum(jm)) continue;
+    const it = { r: row.r, uraian: t, sat: H.sat != null ? txt(c[H.sat]) : '', vol: isNum(vol) ? vol : null, hs: isNum(hs) ? hs : null, jm: isNum(jm) ? jm : null, kode: H.kode != null ? txt(c[H.kode]) : '', seksi: cur, formula: (row.f || {})[H.jm] };
+    items.push(it);
+    if (it.vol != null && it.hs != null && it.jm != null && beda(it.vol * it.hs, it.jm, 1)) add('kritis', 'Hitungan', `Jumlah harga "${it.uraian || 'item'}" ${rp0(it.jm)}, seharusnya volume ${fmtAngka(it.vol)} × ${rp0(it.hs)} = ${rp0(it.vol * it.hs)}.`, sel(sh, it.r, H.jm));
+    if (it.vol === 0) nolVol.push(it);
+    if (!it.uraian && (it.vol || it.hs)) tanpaUraian.push(it);
+    if (/^ls$|^lump/i.test(it.sat) && it.hs >= 1e6 && !it.kode) ls.push(it);
+  }
+  for (const L in labelSeksi) if (labelSeksi[L].length > 1) add('info', 'Penomoran', `Huruf/nomor bagian "${L}" dipakai ${labelSeksi[L].length} kali: ${labelSeksi[L].map(x => x.judul).join('; ')}.`, sel(sh, labelSeksi[L][1].r, H.no ?? 0), 'Urutkan ulang penomoran bagian RAB.');
+  // subtotal
+  let jumSub = 0;
+  subs.forEach((s, i) => {
+    const dariItem = s.items.reduce((a, x) => a + (x.jm || 0), 0), prev = subs.slice(0, i).filter(x => x.cur && s.cur && x.cur !== s.cur);
+    if (s.items.length && !beda(s.v, dariItem, 2)) { jumSub += s.v; return; }
+    if (!s.items.length) return;
+    add('kritis', 'Hitungan', `Subtotal ${s.cur ? `bagian ${s.cur.label} (${s.cur.judul})` : ''} ${rp0(s.v)}, padahal jumlah itemnya ${rp0(dariItem)} (selisih ${rp0(s.v - dariItem)}).`, sel(sh, s.r, H.jm));
+    jumSub += s.v;
+  });
+  const sumItem = items.reduce((a, x) => a + (x.jm || 0), 0);
+  meta.jumlah = sumItem; meta.jumlahItem = items.length;
+  if (totalRow && beda(totalRow.v, sumItem, 2)) add('kritis', 'Hitungan', `Jumlah total RAB ${rp0(totalRow.v)}, padahal jumlah seluruh item ${rp0(sumItem)} (selisih ${rp0(totalRow.v - sumItem)}).`, sel(sh, totalRow.r, H.jm));
+  if (nolVol.length) add('penting', 'Isi RAB', `${nolVol.length} item bervolume 0 masih tercantum (mis. ${nolVol.slice(0, 3).map(x => `"${x.uraian || 'tanpa uraian'}"`).join(', ')}). Item yang tidak dikerjakan sebaiknya dihapus agar RAB tidak membingungkan.`, sel(sh, nolVol[0].r, H.vol ?? H.jm), `Baris: ${nolVol.map(x => x.r).slice(0, 25).join(', ')}${nolVol.length > 25 ? ', …' : ''}`);
+  if (tanpaUraian.length) add('penting', 'Isi RAB', `${tanpaUraian.length} item berisi volume/harga tetapi uraiannya kosong.`, sel(sh, tanpaUraian[0].r, H.uraian), `Baris: ${tanpaUraian.map(x => x.r).join(', ')}`);
+  const tanpaFormula = items.filter(x => x.jm && x.vol && x.hs && S.grid.some(q => q.f && Object.keys(q.f).length) && !x.formula);
+  if (tanpaFormula.length && tanpaFormula.length < items.length) add('info', 'Hitungan', `${tanpaFormula.length} sel jumlah harga diketik manual, bukan rumus volume × harga satuan.`, sel(sh, tanpaFormula[0].r, H.jm), `Baris: ${tanpaFormula.map(x => x.r).slice(0, 20).join(', ')}`);
+
+  // ---- rekap: PPN, total, dibulatkan, terbilang
+  const rekapSh = sheets.filter(x => x !== S && /rekap/i.test(x.name) && !/ahsp|analisa/i.test(x.name)).map(x => ({ x, n: identitasRab(x.grid || []).nama })).filter(o => !o.n || !meta.nama || dice(o.n.v, meta.nama) > 0.8).sort((a, b) => dice(b.x.name, sh) - dice(a.x.name, sh)).map(o => o.x)[0];
+  const zona = [];
+  const ambil = (src, from) => (src.grid || []).slice(from).forEach(row => zona.push({ sh: src.name, row }));
+  ambil(S, totalRow ? g.findIndex(x => x.r === totalRow.r) : g.length);
+  if (rekapSh) ambil(rekapSh, 0);
+  const angka = z => { const vals = Object.entries(z.row.c).filter(([, v]) => isNum(v) && v > 1000); if (z.sh === S.name && isNum(z.row.c[H.jm])) return [String(H.jm), z.row.c[H.jm]]; return vals.sort((a, b) => +a[0] - +b[0])[0]; };
+  const cari = re => { for (const z of zona) { const lab = Object.values(z.row.c).map(txt).join(' '); if (re.test(lab)) { const n = angka(z); return { z, n: n ? n[1] : null, col: n ? +n[0] : null, lab }; } } return null; };
+  const jRek = !rekapSh ? null : cari(/^\s*jumlah\s*$|jumlah\s*(total|harga)?\s*(\(|$)|^total\b/i), ppn = cari(/\bppn\b|pajak/i), tot = (() => { let seen = false; for (const z of zona) { const lab = Object.values(z.row.c).map(txt).join(' '); if (/\bppn\b|pajak/i.test(lab)) { seen = true; continue; } if (seen && /jumlah|total/i.test(lab)) { const n = angka(z); if (n) return { z, n: n[1], col: +n[0] }; } } return null; })();
+  const bul = cari(/dibulatkan|pembulatan/i);
+  let ter = null; for (let i = 0; i < zona.length; i++) { const lab = Object.values(zona[i].row.c).map(txt).join(' '); if (/terbilang/i.test(lab)) { const sisa = lab.replace(/^.*terbilang\s*:?\s*/i, ''); const t = sisa.length > 10 ? sisa : (zona[i + 1] ? Object.values(zona[i + 1].row.c).filter(v => typeof v === 'string').map(txt).sort((a, b) => b.length - a.length)[0] : ''); ter = { z: zona[i], t }; break; } }
+  const dasar = jRek && jRek.n ? jRek.n : (totalRow ? totalRow.v : sumItem);
+  if (jRek && jRek.n && beda(jRek.n, sumItem, 2)) add('kritis', 'Hitungan', `Jumlah di rekapitulasi ${rp0(jRek.n)} tidak sama dengan jumlah item RAB ${rp0(sumItem)}.`, sel(jRek.z.sh, jRek.z.row.r, jRek.col));
+  if (ppn && ppn.n) {
+    const rasio = ppn.n / dasar, ef = 0.11;
+    meta.ppn = ppn.n;
+    if (Math.abs(rasio - ef) > 0.0005) add('kritis', 'PPN', `PPN ${rp0(ppn.n)} = ${(rasio * 100).toFixed(2)}% dari jumlah ${rp0(dasar)}. Untuk jasa konstruksi berlaku PPN 12% × DPP nilai lain 11/12, efektif 11% = ${rp0(dasar * ef)}.`, sel(ppn.z.sh, ppn.z.row.r, ppn.col));
+  } else add('penting', 'PPN', 'Baris PPN tidak ditemukan di RAB maupun rekapitulasi.', '');
+  const total = tot && tot.n ? tot.n : (ppn && ppn.n ? dasar + ppn.n : null);
+  if (tot && tot.n && ppn && ppn.n && beda(tot.n, dasar + ppn.n, 2)) add('kritis', 'Hitungan', `Jumlah setelah PPN ${rp0(tot.n)}, seharusnya ${rp0(dasar)} + ${rp0(ppn.n)} = ${rp0(dasar + ppn.n)}.`, sel(tot.z.sh, tot.z.row.r, tot.col));
+  let akhir = total;
+  if (bul && bul.n && total) {
+    akhir = bul.n; meta.dibulatkan = bul.n;
+    if (bul.n > total + 0.5) add('kritis', 'Pembulatan', `Nilai dibulatkan ${rp0(bul.n)} lebih besar dari total ${rp0(total)} (pembulatan ke atas ${rp0(bul.n - total)}). Pembulatan seharusnya ke bawah: ${rp0(Math.floor(total / 1000) * 1000)}.`, sel(bul.z.sh, bul.z.row.r, bul.col));
+    else if (total - bul.n >= 1000) add('penting', 'Pembulatan', `Pembulatan ${rp0(bul.n)} terlalu jauh dari total ${rp0(total)} (selisih ${rp0(total - bul.n)}). Biasanya dibulatkan ke bawah ribuan: ${rp0(Math.floor(total / 1000) * 1000)}.`, sel(bul.z.sh, bul.z.row.r, bul.col));
+  }
+  meta.total = akhir;
+  if (ter && akhir) {
+    const norm = s => s.toLowerCase().replace(/rupiah|[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim(), want = norm(num2terbilang(Math.round(akhir)));
+    if (ter.t && norm(ter.t) !== want) add('kritis', 'Terbilang', `Terbilang "${ter.t}" tidak sesuai dengan ${rp0(akhir)}. Seharusnya: "${titleCase(num2terbilang(Math.round(akhir)))} Rupiah".`, `${ter.z.sh.trim()}!baris ${ter.z.row.r}`);
+  } else if (!ter) add('info', 'Terbilang', 'Terbilang total RAB tidak ditemukan.', '');
+  // pagu & HPS
+  const P = O.paket || {};
+  if (P.pagu && akhir && akhir > P.pagu + 0.5) add('kritis', 'Pagu', `Total RAB ${rp0(akhir)} melebihi pagu ${rp0(P.pagu)} (lebih ${rp0(akhir - P.pagu)}).`, '');
+  if (P.hps && akhir && Math.abs(akhir - P.hps) >= 1000) add('penting', 'HPS', `Total RAB ${rp0(akhir)} berbeda dengan HPS di FISIK MURNI ${rp0(P.hps)} (selisih ${rp0(akhir - P.hps)}).`, '');
+  if (P.pagu && akhir && akhir <= P.pagu && P.pagu - akhir < 1000 && total > P.pagu) add('info', 'Pagu', `Total RAB sebelum dibulatkan ${rp0(total)} sedikit di atas pagu; nilai akhirnya disamakan dengan pagu ${rp0(P.pagu)}. Pastikan ini bukan penyesuaian angka di luar perhitungan.`, '');
+  if (ls.length) add('penting', 'Harga', `${ls.length} item lump sum (Ls) bernilai ≥ Rp1 juta tanpa kode analisa: ${ls.slice(0, 4).map(x => `"${x.uraian}" ${rp0(x.hs)}`).join(', ')}. Minta rincian perhitungannya agar tidak menjadi celah mark-up.`, sel(sh, ls[0].r, H.hs));
+
+  // ---- 2. AHSP & analisa
+  const semuaTeks = sheets.map(s => (s.grid || []).slice(0, 60).map(r => Object.values(r.c).join(' ')).join(' ')).join(' ');
+  const acu = [];
+  if (/28\s*\/\s*PRT\s*\/\s*M\s*\/\s*2016|28 tahun 2016/i.test(semuaTeks)) acu.push('Permen PUPR 28/PRT/M/2016');
+  if (/(nomor|no\.?)\s*1\s*tahun\s*2022|\b1\/2022\b/i.test(semuaTeks)) acu.push('Permen PUPR 1/2022');
+  const se = [...semuaTeks.matchAll(/(\d{1,3})\s*\/\s*SE\s*\/\s*D[kK]\s*\/\s*(20\d\d)/g)].map(m => `${m[1]}/SE/Dk/${m[2]}`);
+  const seLama = [...new Set(se)].filter(x => x !== '47/SE/Dk/2026');
+  if (acu.length) add('kritis', 'AHSP', `Analisa masih mengacu ${acu.join(' dan ')}, yang sudah diganti ${AHSP_TERBARU.permen}.`, '', `Gunakan AHSP ${AHSP_TERBARU.label}.`);
+  if (seLama.length) add('penting', 'AHSP', `Analisa memakai SE Dirjen Bina Konstruksi ${seLama.join(', ')}. AHSP terbaru: ${AHSP_TERBARU.label}.`, '', 'Mutakhirkan koefisien analisa sesuai SE 47/SE/Dk/2026.');
+  if (!acu.length && !se.length) add('info', 'AHSP', 'Acuan AHSP tidak tercantum di berkas RAB/analisa.', '', `Cantumkan acuan ${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}.`);
+  const anSheets = sheets.filter(s => /analisa|anls|ahsp/i.test(s.name) && !/rekap/i.test(s.name));
+  const upahSh = sheets.find(s => /^upah/i.test(s.name.trim())), bahanSh = sheets.find(s => /^bahan/i.test(s.name.trim()));
+  const daftarHarga = sh0 => { const m = new Map(); if (!sh0) return m; let cu = null, ch = null; for (const row of sh0.grid) { const ent = Object.entries(row.c).map(([k, v]) => [+k, v]); if (cu == null) { const u = ent.find(([, v]) => /^(uraian|jenis|nama)/i.test(txt(v))), h = ent.find(([, v]) => /upah|harga/i.test(txt(v)) && !/uraian/i.test(txt(v))); if (u && h) { cu = u[0]; ch = h[0]; } continue; } const nm = txt(row.c[cu]), hv = row.c[ch]; if (nm && isNum(hv) && !m.has(nm.toLowerCase())) m.set(nm.toLowerCase(), hv); } return m; };
+  const HU = daftarHarga(upahSh);
+  const an = new Map(); let ohMax = null, ohLok = '', hargaBeda = [];
+  for (const A of anSheets) {
+    let kode = null, nama = '', blok = null, C = null, pend = null;
+    const flush = () => { if (blok && kode && (blok.rows.length || blok.f != null) && !an.has(kode.replace(/\.$/, ''))) an.set(kode.replace(/\.$/, ''), Object.assign(blok, { nama })); blok = null; };
+    for (const row of A.grid) {
+      const ent = Object.entries(row.c).map(([k, v]) => [+k, v]), lab = ent.map(([, v]) => txt(v)).join(' ');
+      const hk = ent.find(([, v]) => /koef/i.test(txt(v))), hj = ent.filter(([, v]) => /jumlah\s*harga/i.test(txt(v))).pop(), hh = ent.find(([, v]) => /harga\s*sat/i.test(txt(v)));
+      if (hk && hj && hh) { const hu = ent.find(([, v]) => /^uraian$/i.test(txt(v))); C = { k: hk[0], h: hh[0], j: hj[0], u: hu ? hu[0] : hk[0] - 4 }; flush(); kode = pend && row.r - pend.r <= 4 ? pend.kode : `~${A.name}#${row.r}`; nama = pend && row.r - pend.r <= 4 ? pend.nama : ''; blok = { r: row.r, sh: A.name, rows: [] }; pend = null; continue; }
+      if (!ent.some(([, v]) => isNum(v)) && ent.length <= 3) { const kd = ent.find(([, v]) => typeof v === 'string' && /^[A-Z]{1,2}\.\d+(\.\d+){2,}[a-z]?\.?$/.test(txt(v))); const nm = ent.filter(([, v]) => typeof v === 'string' && /[a-z]{4}/i.test(v)).map(([, v]) => txt(v)).sort((a, b) => b.length - a.length)[0]; if (nm || kd) { pend = { r: row.r, kode: kd ? txt(kd[1]) : `~${A.name}#${row.r}`, nama: nm || '' }; if (!/^(a|b|c|d|tenaga|bahan|peralatan)$/i.test(nm || '')) continue; } }
+      if (!blok || !C) continue;
+      const vj = row.c[C.j], kiri = ent.filter(([k]) => k < C.j);
+      const labK = kiri.map(([, v]) => txt(v)).join(' ');
+      if (/overhead|keuntungan|biaya umum/i.test(labK)) { const p = kiri.find(([, v]) => isNum(v) && v > 0 && v < 1); if (p) { blok.oh = p[1]; if (ohMax == null || p[1] > ohMax) { ohMax = p[1]; ohLok = sel(A.name, row.r, p[0]); } } if (isNum(vj)) blok.e = vj; continue; }
+      if (/jumlah\s*\(?\s*a\s*\+\s*b/i.test(labK)) { if (isNum(vj)) blok.d = vj; continue; }
+      if (/harga satuan pekerjaan/i.test(labK)) { if (isNum(vj)) { blok.f = vj; blok.fr = row.r; } continue; }
+      if (/jumlah/i.test(labK)) { if (isNum(vj)) (blok.sub = blok.sub || []).push(vj); continue; }
+      const nm = txt(row.c[C.u] ?? row.c[C.u + 1] ?? ''), koef = row.c[C.k], harga = row.c[C.h];
+      if (nm && isNum(koef) && isNum(harga) && isNum(vj)) blok.rows.push({ nama: nm, koef, harga, jml: vj, r: row.r, col: C.j });
+    }
+    flush();
+  }
+  const cekBlok = (kd, b) => { const e = [];
+    b.rows.forEach(x => { if (beda(x.koef * x.harga, x.jml, 1)) e.push(`${kd} "${x.nama}" baris ${x.r}: ${fmtAngka(x.koef)} × ${rp0(x.harga)} ≠ ${rp0(x.jml)}`); const hu = HU.get(x.nama.toLowerCase()); if (hu && x.harga && beda(hu, x.harga, 1)) hargaBeda.push(`${kd}: upah ${x.nama} ${rp0(x.harga)}, daftar upah ${rp0(hu)}`); if (x.harga === 0 && x.koef > 0) e.push(`${kd} "${x.nama}" harga Rp0`); });
+    if (b.d != null && b.rows.length) { const s = b.rows.reduce((a, x) => a + x.jml, 0); if (beda(s, b.d, 2)) e.push(`${kd} jumlah A+B+C ${rp0(b.d)} ≠ ${rp0(s)}`); }
+    if (b.d != null && b.oh != null && b.e != null && beda(b.d * b.oh, b.e, 2)) e.push(`${kd} overhead ${rp0(b.e)} ≠ ${(b.oh * 100).toFixed(0)}% × ${rp0(b.d)}`);
+    if (b.d != null && b.e != null && b.f != null && beda(b.d + b.e, b.f, 2)) e.push(`${kd} harga satuan ${rp0(b.f)} ≠ D+E ${rp0(b.d + b.e)}`);
+    return e; };
+  if (ohMax != null && ohMax > 0.15 + 1e-9) add('kritis', 'Overhead', `Biaya umum dan keuntungan (overhead & profit) ${(ohMax * 100).toFixed(1)}%, melebihi batas 15%.`, ohLok);
+  meta.analisa = an.size;
+  const STOP = new Set(['pekerjaan', 'pemasangan', 'pasang', 'pembuatan', 'membuat', 'untuk', 'dengan', 'tebal', 'campuran', 'cara', 'manual', 'mekanis', 'semi', 'dari', 'yang', 'atau', 'bagian', 'termasuk', 'mutu']);
+  const AKAR = [[/^(pe?nulangan|tulangan|pembesian|besi|beugel|sengkang|begel)$/, 'besi'], [/^(pengurugan|urugan|urug)$/, 'urug'], [/^(penggalian|galian)$/, 'galian'], [/^(pengecatan|cat)$/, 'cat'], [/^(plesteran|plester)$/, 'plester'], [/^(acian|aci)$/, 'acian'], [/^(bekisting|begisting)$/, 'bekisting'], [/^(pengecoran|cor|beton)$/, 'beton'], [/^(pancang|cerucuk|dolken|gelam|galam)$/, 'pancang']];
+  const akar = w => { for (const [re, k] of AKAR) if (re.test(w)) return k; return w; };
+  const kata = s => new Set((String(s).toLowerCase().replace(/fondasi/g, 'pondasi').match(/[a-z]{3,}/g) || []).filter(w => !STOP.has(w) && w.length >= 3).map(akar).filter(w => w.length >= 4 || ['cat', 'cor'].includes(w)));
+  const mirip = (a, b) => { const A = kata(a), B = [...kata(b)]; for (const w of A) if (B.some(v => v === w || (w.length >= 5 && v.includes(w)) || (v.length >= 5 && w.includes(v)))) return true; return dice(a, b) >= 0.5; };
+  if (an.size) {
+    const mark = [], tak = [], salahKode = [], pakai = new Map(), namaAn = [...an.entries()];
+    for (const it of items) {
+      if (it.hs == null || !it.vol) continue;
+      const kk = it.kode ? it.kode.replace(/\s+/g, '').replace(/\.$/, '') : '';
+      let b = kk ? an.get(kk) : null, via = 'kode', kd = kk;
+      if (kk && !b && /^[A-Z]\.\d/.test(kk)) tak.push(`${kk} (${it.uraian || 'baris ' + it.r})`);
+      if (b && it.uraian && b.nama && !mirip(it.uraian, b.nama)) { salahKode.push(`baris ${it.r} "${it.uraian}" memakai ${kk} (${b.nama})`); b = null; }
+      if (!b && it.uraian) { let best = null, bs = 0.8; for (const [k2, x] of namaAn) { const s = dice(it.uraian, x.nama); if (s > bs) { bs = s; best = x; kd = k2; } } if (best) { b = best; via = 'uraian'; } }
+      if (!b) continue;
+      pakai.set(kd, b);
+      if (b.f > 0 && it.hs > b.f * 1.01 + 1) mark.push({ it, b, via, kd });
+    }
+    const salahAn = []; for (const [kd, b] of pakai) salahAn.push(...cekBlok(kd.startsWith('~') ? `"${b.nama}"` : kd, b));
+    const ohSalah = salahAn.filter(x => /overhead/.test(x)), lainAn = salahAn.filter(x => !/overhead/.test(x));
+    if (ohSalah.length) { const ef = [], tc = []; for (const [, b] of pakai) if (b.d && b.e && b.oh != null && beda(b.d * b.oh, b.e, 2)) { ef.push(b.e / b.d); tc.push(b.oh); } const md = a => a.sort((x, y) => x - y)[Math.floor(a.length / 2)]; add('kritis', 'Overhead', `Di ${ohSalah.length} analisa yang dipakai RAB, overhead & profit tidak sama dengan persentase yang tercantum (tercantum ${(md(tc) * 100).toFixed(0)}%, dihitung ±${(md(ef) * 100).toFixed(1)}%).`, '', ohSalah.slice(0, 8).join('; ')); }
+    if (lainAn.length) add('kritis', 'Analisa', `${lainAn.length} hitungan di analisa yang dipakai RAB tidak cocok.`, '', lainAn.slice(0, 12).join('; ') + (lainAn.length > 12 ? '; …' : ''));
+    if (hargaBeda.length) add('penting', 'Harga', `${hargaBeda.length} harga upah di analisa berbeda dengan daftar upah di berkas yang sama.`, '', hargaBeda.slice(0, 10).join('; '));
+    if (mark.length) add('kritis', 'Mark-up', `${mark.length} harga satuan di RAB lebih tinggi dari hasil analisanya, mis. ${mark.slice(0, 3).map(m => `"${m.it.uraian}" ${rp0(m.it.hs)} vs analisa ${m.via === 'kode' ? m.kd : `"${m.b.nama}"`} ${rp0(m.b.f)}`).join('; ')}.`, sel(sh, mark[0].it.r, H.hs), mark.map(m => `baris ${m.it.r}: ${rp0(m.it.hs)} → ${rp0(m.b.f)} (+${((m.it.hs / m.b.f - 1) * 100).toFixed(1)}%)`).slice(0, 15).join('; '));
+    if (salahKode.length) add('kritis', 'Analisa', `${salahKode.length} item RAB memakai kode analisa milik pekerjaan lain, sehingga harga satuannya tidak bisa ditelusuri.`, '', salahKode.slice(0, 8).join('; '));
+    if (tak.length) add('penting', 'AHSP', `${tak.length} kode analisa di RAB tidak ada di sheet analisa (kemungkinan kode AHSP lama): ${tak.slice(0, 5).join('; ')}.`, '');
+    const tanpa = items.filter(it => it.hs && it.vol && !/^ls$/i.test(it.sat)).length - [...items].filter(it => it.hs && it.vol).filter(it => { const kk = it.kode ? it.kode.replace(/\s+/g, '').replace(/\.$/, '') : ''; return (kk && an.has(kk)) || (it.uraian && namaAn.some(([, x]) => dice(it.uraian, x.nama) > 0.8)); }).length;
+    meta.dipakai = pakai.size;
+  } else if (items.length) add('penting', 'Analisa', 'Berkas tidak memuat sheet analisa harga satuan, sehingga harga satuan RAB tidak bisa diuji.', '', 'Minta konsultan melampirkan analisa harga satuan (AHSP) yang dipakai.');
+
+  // ---- 3. Kesesuaian data
+  const nn = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  if (P.nama && meta.nama && nn(meta.nama) !== nn(P.nama)) add('penting', 'Data paket', `Nama pekerjaan di RAB "${meta.nama}" berbeda dengan paket di DPA/FISIK MURNI "${P.nama}".`, id.nama ? sel(sh, id.nama.r, id.nama.c) : '');
+  const tahunIni = O.tahun || new Date().getFullYear();
+  if (meta.tahun && String(meta.tahun).match(/\d{4}/) && +String(meta.tahun).match(/\d{4}/)[0] !== tahunIni) add('penting', 'Data paket', `Tahun anggaran di RAB ${meta.tahun}, seharusnya ${tahunIni}.`, id.tahun ? sel(sh, id.tahun.r, id.tahun.c) : '');
+  if (P.sub && meta.sub && dice(meta.sub, P.sub) < 0.85) add('info', 'Data paket', `Sub kegiatan di RAB "${meta.sub}" berbeda dengan DPA "${P.sub}".`, id.sub ? sel(sh, id.sub.r, id.sub.c) : '');
+  if (P.lokasi && meta.lokasi && dice(meta.lokasi, P.lokasi) < 0.5 && !meta.lokasi.toLowerCase().includes(P.lokasi.toLowerCase().replace(/^(kelurahan|desa|kec\.?|kecamatan)\s+/, ''))) add('info', 'Data paket', `Lokasi di RAB "${meta.lokasi}", di FISIK MURNI "${P.lokasi}".`, id.lokasi ? sel(sh, id.lokasi.r, id.lokasi.c) : '');
+  // sheet paket lain
+  const lain = kandidat.slice(1).filter(k => k.id.nama && nmPaket && dice(k.id.nama.v, nmPaket) < 0.6).map(k => `${k.s.name.trim()} (${k.id.nama.v})`);
+  if (lain.length) add('info', 'Isi berkas', `Berkas juga memuat ${lain.length} sheet RAB paket lain: ${lain.slice(0, 4).join('; ')}${lain.length > 4 ? '; …' : ''}.`, '', 'Hapus sheet paket lain sebelum RAB diserahkan.');
+  const setelahTotal = totalRow ? g.filter(x => x.r > totalRow.r + 12 && Object.values(x.c).some(v => typeof v === 'string' && /^(pekerjaan|pek\.|pemasangan|pasang)\b/i.test(txt(v))) && Object.values(x.c).some(isNum)).length : 0;
+  if (setelahTotal > 3) add('penting', 'Isi berkas', `Ada ${setelahTotal} baris item pekerjaan di bawah jumlah total sheet ${sh.trim()}, kemungkinan sisa dari paket lain.`, sel(sh, totalRow.r + 1, 0), 'Hapus baris di bawah total RAB.');
+  // uraian vs spek / FISIK MURNI
+  const urRef = (O.uraianSpek && O.uraianSpek.length ? O.uraianSpek : (P.uraianFM || [])).filter(x => !/smkk|k3|keselamatan/i.test(x));
+  if (urRef.length && seksi.length) {
+    const SIN = [[/^(pendahuluan|persiapan)$/, 'persiapan'], [/^(plafond|plafon|langit)$/, 'plafon'], [/^(pengecatan|catan|cat)$/, 'cat'], [/^(elektrikal|listrik|lampu|instalasi|penerangan)$/, 'listrik'], [/^(sanitasi|plumbing|sanitair)$/, 'sanitasi'], [/^(pondasi|fondasi)$/, 'pondasi'], [/^(beton|struktur)$/, 'beton'], [/^(dinding|plesteran|pasangan)$/, 'dinding'], [/^(lantai|keramik)$/, 'lantai'], [/^(kusen|pintu|jendela|penggantung)$/, 'kusen'], [/^(smkk|keselamatan)$/, 'smkk']];
+    const kunci = s => (s.toLowerCase().replace(/pekerjaan|\(.*?\)/g, ' ').match(/[a-z]{3,}/g) || []).map(w => { for (const [re, k] of SIN) if (re.test(w)) return k; return w; }).filter(w => w.length >= 3 && !['dan', 'the'].includes(w));
+    const ada = seksi.map(x => kunci(x.judul + ' ' + x.judul.replace(/\(|\)/g, ' ')));
+    const ur = urRef.map(u => kunci(u));
+    const hilang = urRef.filter((u, i) => !ada.some(a => ur[i].some(k => a.includes(k))));
+    const lebih = seksi.filter((x, i) => !/smkk|k3|keselamatan/i.test(x.judul) && !ur.some(u => ada[i].some(k => u.includes(k))));
+    const sumber = O.uraianSpek && O.uraianSpek.length ? 'spek teknis' : 'FISIK MURNI';
+    if (hilang.length) add('penting', 'Uraian', `Uraian pekerjaan di ${sumber} yang tidak ada di RAB: ${hilang.join(', ')}.`, '');
+    if (lebih.length) add('info', 'Uraian', `Bagian RAB yang tidak ada di uraian pekerjaan ${sumber}: ${lebih.map(x => x.judul).join(', ')}.`, '');
+  }
+  meta.seksi = seksi.length;
+  meta.pilihan = kandidat.map(k => ({ sheet: k.s.name, nama: k.id.nama ? k.id.nama.v : '' }));
+  return { meta, findings: F };
+}
+
+/* ---------- Catatan koreksi RAB (.docx) ---------- */
+const CRC_R = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crcR = u8 => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_R[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  for (const [name, text] of files) {
+    const nm = enc.encode(name), data = typeof text === 'string' ? enc.encode(text) : text, crc = crcR(data);
+    const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nm.length, true);
+    parts.push(new Uint8Array(h.buffer), nm, data);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    cen.push(new Uint8Array(c.buffer), nm); off += 30 + nm.length + data.length;
+  }
+  const cs = cen.reduce((a, x) => a + x.length, 0), e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cs, true); e.setUint32(16, off, true);
+  const all = [...parts, ...cen, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((a, x) => a + x.length, 0)); let p = 0; all.forEach(x => { out.set(x, p); p += x.length; }); return out;
+}
+function catatanRabDocx(R, info) {
+  const I = info || {}, M = R.meta || {}, X = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const run = (t, o) => { const p = o || {}; return `<w:r><w:rPr>${p.b ? '<w:b/>' : ''}${p.sz ? `<w:sz w:val="${p.sz}"/><w:szCs w:val="${p.sz}"/>` : ''}${p.color ? `<w:color w:val="${p.color}"/>` : ''}</w:rPr>${String(t).split('\n').map((x, i) => (i ? '<w:br/>' : '') + `<w:t xml:space="preserve">${X(x)}</w:t>`).join('')}</w:r>`; };
+  const par = (t, o) => { const p = o || {}; return `<w:p><w:pPr>${p.jc ? `<w:jc w:val="${p.jc}"/>` : ''}<w:spacing w:before="${p.before || 0}" w:after="${p.after == null ? 80 : p.after}"/></w:pPr>${Array.isArray(t) ? t.join('') : run(t, p)}</w:p>`; };
+  const cell = (w, content, o) => { const p = o || {}; return `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${p.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${p.fill}"/>` : ''}<w:vAlign w:val="top"/></w:tcPr>${content || par('', { after: 0 })}</w:tc>`; };
+  const tbl = (widths, rows, o) => `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/>${o && o.noBorder ? '' : '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="808080"/><w:left w:val="single" w:sz="4" w:color="808080"/><w:bottom w:val="single" w:sz="4" w:color="808080"/><w:right w:val="single" w:sz="4" w:color="808080"/><w:insideH w:val="single" w:sz="4" w:color="808080"/><w:insideV w:val="single" w:sz="4" w:color="808080"/></w:tblBorders>'}<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>${rows.join('')}</w:tbl>`;
+  const tr = (cells, hdr) => `<w:tr>${hdr ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}${cells.join('')}</w:tr>`;
+  const rp = v => v ? 'Rp' + Math.round(v).toLocaleString('id-ID') : '-';
+  const ident = [['Nama paket', I.nama || M.nama], ['Lokasi', M.lokasi], ['Tahun anggaran', M.tahun], ['Berkas RAB', `${I.file || ''}${M.sheet ? ` (sheet ${M.sheet})` : ''}`], ['Jumlah RAB sebelum PPN', rp(M.jumlah)], ['PPN', rp(M.ppn)], ['Total RAB', rp(M.total)], ['Pagu', rp(I.pagu)], ['HPS (FISIK MURNI)', rp(I.hps)], ['Tanggal pemeriksaan', I.tanggal || '']];
+  const W = [2600, 12000 - 2600];
+  const identTbl = tbl(W, ident.map(([k, v]) => tr([cell(W[0], par(k, { after: 0, sz: 20 })), cell(W[1], par(v || '-', { after: 0, sz: 20 }))])), { noBorder: false });
+  const order = { kritis: 0, penting: 1, info: 2 }, F = (R.findings || []).slice().sort((a, b) => order[a.tingkat] - order[b.tingkat]);
+  const W2 = [500, 1300, 1200, 4800, 2100, 4100];
+  const head = tr(['No', 'Tingkat', 'Bagian', 'Temuan', 'Lokasi', 'Koreksi yang diminta'].map((h, i) => cell(W2[i], par(h, { b: true, sz: 20, after: 0, jc: 'center' }), { fill: 'D9E2F3' })), true);
+  const warna = { kritis: 'C00000', penting: 'B45F06', info: '1F4E79' };
+  const rows = F.map((f, i) => tr([
+    cell(W2[0], par(String(i + 1), { sz: 20, after: 0, jc: 'center' })),
+    cell(W2[1], par(f.tingkat[0].toUpperCase() + f.tingkat.slice(1), { sz: 20, after: 0, b: true, color: warna[f.tingkat] })),
+    cell(W2[2], par(f.kat, { sz: 20, after: 0 })),
+    cell(W2[3], par(f.msg, { sz: 20, after: 0 })),
+    cell(W2[4], par(f.lok || '-', { sz: 18, after: 0 })),
+    cell(W2[5], par([...new Set([saranRab(f), f.saran].filter(Boolean))].join('\n'), { sz: 20, after: 0 }))]));
+  const n = t => F.filter(f => f.tingkat === t).length;
+  const body = [
+    par('CATATAN KOREKSI RENCANA ANGGARAN BIAYA (RAB)', { b: true, sz: 28, jc: 'center', after: 40 }),
+    par('Hasil pemeriksaan tim teknis atas RAB konsultan perencana', { sz: 20, jc: 'center', after: 200 }),
+    identTbl,
+    par(`Ringkasan: ${F.length} temuan (${n('kritis')} kritis, ${n('penting')} penting, ${n('info')} info). Acuan AHSP terbaru: Permen PUPR Nomor 8 Tahun 2023 dan SE Dirjen Bina Konstruksi Nomor 47/SE/Dk/2026.`, { sz: 20, before: 200, after: 120 }),
+    F.length ? tbl(W2, [head, ...rows]) : par('Tidak ada temuan.', { sz: 20 }),
+    par('Konsultan perencana diminta memperbaiki RAB sesuai catatan di atas dan menyerahkan kembali RAB beserta analisa harga satuan yang telah diperbaiki.', { sz: 20, before: 240, after: 240 }),
+    tbl([7000, 5000], [tr([cell(7000, par('', { after: 0 })), cell(5000, par(`Tana Paser, ${I.tanggal || '....................'}\n${I.jabatan || 'Tim Teknis'}\n\n\n\n${I.penandatangan || '(.........................................)'}\n${I.nip ? 'NIP. ' + I.nip : 'NIP. ...............................'}`, { sz: 20, jc: 'center', after: 0 }))])], { noBorder: true })
+  ].join('');
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="id-ID"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="252" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>`;
+  return zipStore([
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
+    ['word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['word/document.xml', doc], ['word/styles.xml', styles]]);
+}
+function saranRab(f) {
+  return { Hitungan: 'Perbaiki perhitungan sesuai rumus volume × harga satuan dan jumlahkan ulang.', PPN: 'Hitung PPN 12% × DPP nilai lain 11/12 (efektif 11%).', Pembulatan: 'Bulatkan ke bawah ke ribuan terdekat.', Terbilang: 'Sesuaikan terbilang dengan nilai total.', Pagu: 'Sesuaikan RAB agar tidak melebihi pagu.', HPS: 'Samakan nilai RAB/HPS atau jelaskan selisihnya.', 'Mark-up': 'Samakan harga satuan RAB dengan hasil analisa atau lampirkan dasar harganya.', Overhead: 'Sesuaikan overhead & profit maksimal 15% dan konsisten dengan yang tercantum.', 'Data paket': 'Samakan identitas paket dengan DPA/FISIK MURNI.', 'Isi RAB': 'Lengkapi atau hapus baris yang dimaksud.', Penomoran: 'Rapikan penomoran bagian RAB.', Uraian: 'Samakan bagian RAB dengan uraian pekerjaan.' }[f.kat] || '';
+}
+
+/*ENDRAB*/
+
+return { analyzeRab, catatanRabDocx, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
 })();
 if (typeof module !== 'undefined') module.exports = ENGINE;
 
@@ -1755,8 +2096,8 @@ let DBTK = DBTK0 ? JSON.parse(JSON.stringify(DBTK0)) : null;
 const SAMPLE = /*SAMPLE*/null;
 const $ = id => document.getElementById(id);
 let model = null, fname = '', res = null, sevF = null, katF = null, kataManual = false, srcBuf = null, baseName = '', sel = {}, mode = 'periksa';
-try { if (localStorage.getItem('spek-mode') === 'perbaiki') mode = 'perbaiki'; } catch {}
-const LEAD = { periksa: '', perbaiki: '' };
+try { const m0 = localStorage.getItem('spek-mode'); if (m0 === 'perbaiki' || m0 === 'rab') mode = m0; } catch {}
+const LEAD = { periksa: '', perbaiki: '', rab: '' };
 const needs = f => !f.fix.some(o => o.rec);
 const blank = (o, vals) => (o.input || []).some((x, j) => !String(vals[j] ?? '').trim());
 function autoSelect() { sel = {}; res.findings.forEach(f => { let k = f.fix.findIndex(o => o.rec); if (k < 0) k = f.fix.findIndex(o => o.manual); if (k >= 0) sel[f.id] = { o: k, vals: (f.fix[k].input || []).map(x => x.def) }; }); }
@@ -1993,8 +2334,73 @@ $('rabfile').addEventListener('change', e => { const f = e.target.files[0]; e.ta
 
 try { const S0 = SRC(); if (S0 && S0.tkdbRows) applyTkdbRows(S0.tkdbRows); } catch {}
 showSrcStatus();
+let rcRes = null, rcFile = '', rcSev = null, rcSheets = null;
+async function unduh(blob, nama) {
+  const dl = await dlP;
+  if (dl) { try { await dl.save({ filename: nama, data: blob }); toast('Tersimpan: ' + nama); } catch (e) { toast(e && e.code === 'declined' ? 'Penyimpanan dibatalkan' : 'Belum tersimpan'); } return; }
+  const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = nama; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); toast('Diunduh: ' + nama);
+}
+const rp = v => v ? 'Rp' + Math.round(v).toLocaleString('id-ID') : '—';
+let ttd = {}; try { ttd = JSON.parse(localStorage.getItem('spek-ttd') || '{}'); } catch {}
+[['ttdJab', 'jab'], ['ttdNama', 'nama'], ['ttdNip', 'nip']].forEach(([id, k]) => { $(id).value = ttd[k] || ''; $(id).addEventListener('change', () => { ttd[k] = $(id).value.trim(); try { localStorage.setItem('spek-ttd', JSON.stringify(ttd)); } catch {} }); });
+const paketRab = nama => { const S = SRC(); const b = S && nama ? ENGINE.matchPaket(nama, S) : null; return b && b.nama ? b : null; };
+function rabCek() {
+  if (!rcSheets) return;
+  const namaSheet = s => { for (const g of (s.grid || []).slice(0, 16)) { const v = Object.values(g.c).map(x => String(x).trim()); const i = v.findIndex(x => /^(nama\s+)?(pekerjaan|paket)$/i.test(x)); if (i >= 0) { const n = v.slice(i + 1).find(x => x && x !== ':'); if (n) return n.replace(/^:\s*/, ''); } } return ''; };
+  const pilih = $('rcsheet').value, opsi = rcSheets.map(s => ({ s, n: namaSheet(s) })).filter(o => o.n);
+  let kira = '', P = null;
+  const dipilih = pilih && pilih !== '—' ? opsi.find(o => o.s.name === pilih) : null;
+  if (dipilih) { kira = dipilih.n; P = paketRab(kira) || null; }
+  else {
+    const spekNama = (curPaket && curPaket.nama) || '';
+    const cocok = opsi.map(o => ({ o, q: paketRab(o.n) })).filter(x => x.q && ENGINE.dice(x.q.nama, x.o.n) >= 0.8).map(x => ({ ...x, skor: (spekNama && ENGINE.dice(x.q.nama, spekNama) >= 0.9 ? 4 : 0) + (x.q.barisFM ? 2 : 0) + (/^\s*rab\s*$/i.test(x.o.s.name) ? 1 : 0) })).sort((a, b) => b.skor - a.skor);
+    if (cocok.length) { kira = cocok[0].o.n; P = cocok[0].q; }
+    else if (spekNama) kira = spekNama;
+    else if (opsi.length) { const rek = opsi.filter(o => /rekap/i.test(o.s.name)).map(o => o.n); const rab = opsi.filter(o => /rab/i.test(o.s.name)); kira = (rab.find(o => rek.some(n => ENGINE.dice(n, o.n) > 0.9)) || rab[0] || opsi[0]).n; }
+  }
+  rcRes = ENGINE.analyzeRab(rcSheets, { nama: P?.nama || kira, sheet: dipilih ? dipilih.s.name : '', paket: P ? Object.assign({}, P, { uraianFM: P.uraianFM }) : {}, uraianSpek: (res && res.meta && res.meta.uraian) || [], tahun: new Date().getFullYear() });
+  const pl = (rcRes.meta && rcRes.meta.pilihan) || [];
+  $('rcsheet').innerHTML = pl.map(x => `<option value="${esc(x.sheet)}"${x.sheet === rcRes.meta.sheetAsli ? ' selected' : ''}>${esc(x.sheet.trim())}${x.nama ? ' — ' + esc(x.nama.slice(0, 60)) : ''}</option>`).join('') || '<option>—</option>';
+  rcRes.paket = P; rcRender();
+}
+function rcRender() {
+  const R = rcRes, M = R.meta || {}, P = R.paket || {}, F = R.findings;
+  const n = t => F.filter(f => f.tingkat === t).length;
+  $('rnk').textContent = n('kritis'); $('rnp').textContent = n('penting'); $('rni').textContent = n('info');
+  document.querySelectorAll('[data-rsev]').forEach(b => b.setAttribute('aria-pressed', b.dataset.rsev === rcSev));
+  $('rcname').textContent = rcFile;
+  $('rcmeta').innerHTML = [['Paket', P.nama || M.nama || '—'], ['Sheet RAB', M.sheet || '—'], ['Jumlah item', M.jumlahItem ?? '—'], ['Jumlah sebelum PPN', rp(M.jumlah)], ['PPN', rp(M.ppn)], ['Total RAB', rp(M.total)], ['Pagu', rp(P.pagu)], ['HPS (FISIK MURNI)', rp(P.hps)], ['Analisa terbaca', M.analisa ? `${M.analisa} analisa${M.dipakai ? `, ${M.dipakai} dipakai RAB` : ''}` : '—']].map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join('');
+  const order = { kritis: 0, penting: 1, info: 2 }, show = F.filter(f => !rcSev || f.tingkat === rcSev).sort((a, b) => order[a.tingkat] - order[b.tingkat]);
+  $('rcttl').textContent = `Temuan RAB (${show.length})`;
+  $('rclist').innerHTML = show.length ? show.map(f => `<article class="f ${f.tingkat}"><div class="h"><span class="tag sev">${f.tingkat[0].toUpperCase() + f.tingkat.slice(1)}</span><span class="tag">${esc(f.kat)}</span>${f.lok ? `<span class="lok">${esc(f.lok)}</span>` : ''}</div><p>${esc(f.msg)}</p>${f.saran ? `<p class="sr">${esc(f.saran)}</p>` : ''}</article>`).join('') : `<div class="empty">${F.length ? 'Tidak ada temuan pada filter ini.' : 'Tidak ada temuan. RAB sesuai pemeriksaan otomatis.'}</div>`;
+  $('rcdoc').disabled = false; $('rccopy').disabled = false;
+}
+async function rcLoad(f) {
+  if (!f) return; $('rcerr').textContent = '';
+  if (!/\.xlsx?$/i.test(f.name)) { $('rcerr').textContent = 'RAB harus file Excel (.xlsx atau .xls).'; return; }
+  $('rclbl').textContent = 'Membaca ' + f.name + '…';
+  try { rcSheets = await ENGINE.parseXlsx(await f.arrayBuffer()); rcFile = f.name; $('rcsheet').innerHTML = '<option>—</option>'; rcSev = null; rabCek(); $('rclbl').textContent = 'RAB: ' + f.name + ' (klik untuk ganti)'; toast(`${rcRes.findings.length} temuan pada RAB`); }
+  catch (err) { $('rcerr').textContent = 'RAB tidak terbaca: ' + (err.message || err); $('rclbl').textContent = 'Pilih atau seret file RAB konsultan (.xlsx / .xls)'; }
+}
+$('rcsheet').addEventListener('change', () => { if (rcSheets) { rabCek(); toast('Sheet RAB diganti'); } });
+$('rcfile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; rcLoad(f); });
+(() => { const z = $('rcdrop'); ['dragenter', 'dragover'].forEach(ev => z.addEventListener(ev, e => { e.preventDefault(); z.classList.add('over'); })); ['dragleave', 'drop'].forEach(ev => z.addEventListener(ev, e => { e.preventDefault(); z.classList.remove('over'); })); z.addEventListener('drop', e => rcLoad(e.dataTransfer.files[0])); })();
+document.querySelectorAll('[data-rsev]').forEach(b => b.addEventListener('click', () => { if (!rcRes) return; rcSev = rcSev === b.dataset.rsev ? null : b.dataset.rsev; rcRender(); }));
+const tglID = () => new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+$('rcdoc').addEventListener('click', async () => {
+  if (!rcRes) return; const P = rcRes.paket || {};
+  const u8 = ENGINE.catatanRabDocx(rcRes, { nama: P.nama || rcRes.meta.nama, file: rcFile, pagu: P.pagu, hps: P.hps, tanggal: tglID(), jabatan: ttd.jab || 'Tim Teknis', penandatangan: ttd.nama, nip: ttd.nip });
+  const nm = 'Catatan Koreksi RAB - ' + (P.nama || rcRes.meta.nama || rcFile.replace(/\.xlsx?$/i, '')).replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 90) + '.docx';
+  await unduh(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), nm);
+});
+$('rccopy').addEventListener('click', async () => {
+  if (!rcRes) return; const M = rcRes.meta, P = rcRes.paket || {};
+  const t = [`CATATAN KOREKSI RAB – ${P.nama || M.nama}`, `Total RAB ${rp(M.total)} · Pagu ${rp(P.pagu)}`, '', ...rcRes.findings.map((f, i) => `${i + 1}. [${f.tingkat.toUpperCase()}] ${f.kat}: ${f.msg}${f.lok ? ` (${f.lok})` : ''}${f.saran ? `\n   ${f.saran}` : ''}`)].join('\n');
+  try { await navigator.clipboard.writeText(t); toast('Catatan disalin'); } catch { toast('Gagal menyalin'); }
+});
 function setMode(m) {
   mode = m; try { localStorage.setItem('spek-mode', m); } catch {}
+  if (m === 'rab' && rcSheets) rabCek();
   document.body.className = 'm-' + m;
   document.querySelectorAll('.mseg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m));
   $('lead').textContent = LEAD[m]; $('lead').hidden = !LEAD[m];
