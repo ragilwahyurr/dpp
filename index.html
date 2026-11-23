@@ -224,6 +224,38 @@ function pkBtn(){
   const p=D.paket.find(x=>norm(x.n)===norm(cur)),[st,c]=stTxt(p);
   $('#pkbtn').innerHTML=`${p?`<span class="ck${p.ada?' on':''}"></span>`:''}<span class="ptx"><b>${esc(cur||'Pilih paket')}</b><small class="st-${c}">${p?(adm(p)?'Admin '+esc(adm(p))+' · ':'')+esc(st):cur?'Tidak ada di daftar paket':''}</small>${p&&p.lok?`<small class="pgl">${esc(p.lok)}</small>`:''}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
 }
+// ===== tambah perusahaan baru (database: FISIK MURNI › DB PERUSAHAAN kolom D-E) =====
+const SS_FIS='1i0m1aj5HdOvvUk0hRCDA6oqM6h9oxrq7rkAniE3IQ2o';
+const PB_BTN='<button type="button" id="pbBtn" class="pbb" aria-expanded="false">+ Baru</button>';
+const PB_FORM='<div id="pbForm" class="pbf" hidden><b>Perusahaan baru</b><label class="f"><span>Nama perusahaan</span><input id="pbNama" placeholder="contoh: CV. MAJU JAYA" autocomplete="off"></label><label class="f"><span>NPWP</span><input id="pbNpwp" inputmode="numeric" placeholder="15/16 digit angka" autocomplete="off"></label><p id="pbMsg" class="pbm" role="status"></p><div class="acts"><button type="button" id="pbSimpan" class="pri">Simpan perusahaan</button><button type="button" id="pbBatal">Batal</button></div></div>';
+document.head.insertAdjacentHTML('beforeend','<style>.pbrow{display:flex;gap:8px}.pbrow select{flex:1}.pbb{flex:none;min-height:46px;background:var(--zone);border:0;color:var(--navy)}.pbf{display:grid;gap:10px;margin-top:8px;padding:14px;border:1px dashed var(--acc);border-radius:12px;background:#fffbea}.pbf[hidden]{display:none}.pbm{margin:0;font-size:13.5px;color:var(--mute)}.pbm.bad{color:var(--bad)}.pbm.ok{color:var(--ok)}</style>');
+const kunciPT=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'').replace(/^(cv|pt)/,'');
+function pasangPB(){
+  const b=$('#pbBtn'),f=$('#pbForm');if(!b||!f)return;
+  const msg=(t,c)=>{const m=$('#pbMsg');m.textContent=t||'';m.className='pbm '+(c||'')};
+  b.onclick=()=>{f.hidden=!f.hidden;b.setAttribute('aria-expanded',!f.hidden);if(!f.hidden){msg('');$('#pbNama').focus()}};
+  $('#pbBatal').onclick=()=>{f.hidden=true;b.setAttribute('aria-expanded','false')};
+  $('#pbNpwp').oninput=e=>{e.target.value=e.target.value.replace(/[^\d]/g,'')};
+  $('#pbSimpan').onclick=async()=>{
+    const nama=$('#pbNama').value.replace(/\s+/g,' ').trim().toUpperCase(),npwp=$('#pbNpwp').value.replace(/[^\d]/g,'');
+    if(nama.length<4)return msg('Isi nama perusahaan.','bad');
+    if(npwp.length<15||npwp.length>16)return msg('NPWP harus 15 atau 16 digit angka.','bad');
+    const sama=D.perusahaan.find(p=>kunciPT(p[0])===kunciPT(nama)||(p[1]&&p[1].replace(/[^\d]/g,'')===npwp));
+    if(sama)return msg('Sudah ada di database: '+sama[0]+' (NPWP '+sama[1]+'). Pilih dari daftar.','bad');
+    const btn=$('#pbSimpan');btn.disabled=true;msg('Menyimpan ke database…');
+    try{
+      const rg="'DB PERUSAHAAN'!D2:E1000";
+      const v=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/'+SS_FIS+'/values/'+encodeURIComponent(rg))).json();
+      const baris=(v.values||[]).length+2;
+      await perluToken();
+      const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SS_FIS+'/values/'+encodeURIComponent("'DB PERUSAHAAN'!D"+baris+":E"+baris)+'?valueInputOption=RAW',{method:'PUT',headers:{Authorization:'Bearer '+TOK.t,'Content-Type':'application/json'},body:JSON.stringify({values:[[nama,npwp]]})});
+      if(!r.ok)throw new Error('Sheets '+r.status);
+      D.perusahaan.push([nama,npwp]);D.perusahaan.sort((a,b)=>a[0].localeCompare(b[0],'id'));simpanLokal(MODE);
+      if(R){kontrak(R);const s=$('#kontrak select[data-k]');if(s){s.value=nama;s.dispatchEvent(new Event('change'))}}
+      status('Perusahaan '+esc(nama)+' ditambahkan ke database dan dipilih untuk paket ini.','ok');
+    }catch(e){btn.disabled=false;msg('Gagal menyimpan: '+e.message+'. Coba lagi.','bad')}
+  };
+}
 // nama admin per paket dari spreadsheet PROGRESS (sheet "paket pl")
 let ADM=ls.get('dpp_admin')||{};
 const adm=p=>p&&(ADM[MODE]||{})[norm(p.n)]||'';
@@ -281,11 +313,12 @@ function kontrak(r){
       const jab=pk?String(pk.jabatan).split(':')[0].trim():'';
       return `<label class="f"><span>${esc(jab||f.label)}${pk&&jab.toLowerCase()!==f.label.toLowerCase()?` <small class="tl">(${esc(f.label)})</small>`:''}</span><input data-k="${f.k}" value="${esc(v)}" placeholder="Nama personil" autocomplete="off"></label>`;
     }
-    if(f.tipe==='perusahaan'){const ada=D.perusahaan.some(p=>p[0]===v);return `<label class="f full"><span>Perusahaan</span><select data-k="${f.k}"><option value="">— pilih perusahaan —</option>${!ada&&v?`<option selected value="${esc(v)}">${esc(v)} (tidak ada di database)</option>`:''}${D.perusahaan.map(p=>`<option ${p[0]===v?'selected':''} value="${esc(p[0])}">${esc(p[0])}</option>`).join('')}</select></label>`}
+    if(f.tipe==='perusahaan'){const ada=D.perusahaan.some(p=>p[0]===v);return `<div class="f full"><span>Perusahaan</span><div class="pbrow"><select data-k="${f.k}"><option value="">— pilih perusahaan —</option>${!ada&&v?`<option selected value="${esc(v)}">${esc(v)} (tidak ada di database)</option>`:''}${D.perusahaan.map(p=>`<option ${p[0]===v?'selected':''} value="${esc(p[0])}">${esc(p[0])}</option>`).join('')}</select>${MODE==='fisik'?PB_BTN:''}</div>${MODE==='fisik'?PB_FORM:''}</div>`}
     if(f.tipe==='npwp')return `<label class="f"><span>NPWP (otomatis)</span><input readonly id="iNpwp" value="${esc(v)}"></label>`;
     if(f.tipe==='nilai')return `<label class="f"><span>${esc(f.label)} (Rp)</span><input inputmode="numeric" data-k="${f.k}" data-nilai="1" value="${esc(v?rp(v):'')}" placeholder="contoh 17.205.000"></label>`;
     return `<label class="f"><span>${esc(f.label)}</span><input data-k="${f.k}" value="${esc(v)}" placeholder="Nama personil" autocomplete="off"></label>`;
   }).join('');
+  pasangPB();
   $$('#kontrak [data-k]').forEach(el=>{
     if(el.dataset.nilai)el.oninput=()=>{const v=el.value.replace(/[^\d]/g,'');el.value=v?Number(v).toLocaleString('id-ID'):''};
     el.onchange=()=>{const o={};o[el.dataset.k]=el.value;
