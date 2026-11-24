@@ -294,6 +294,35 @@ function pasangPB(){
     }catch(e){btn.disabled=false;msg('Gagal menyimpan: '+e.message+'. Coba lagi.','bad')}
   };
 }
+// ===== edit tanggal MDP pengawasan yang biasanya mengikuti MDP Fisik (tulis langsung ke PENGAWASAN MURNI › DATA kolom B) =====
+async function tglPws(nilai){
+  if(!R||!R.nama)return;
+  const id=SS_ALL.pengawasan,gid=432844311,nm=String(R.nama).replace(/\s+/g,' ').trim();
+  status(nilai?'Menyimpan tanggal MDP…':'Mengembalikan tanggal agar ikut MDP Fisik…');
+  try{
+    const g=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values/'+encodeURIComponent('DATA!G2:G400'))).json();
+    const i=(g.values||[]).findIndex(r=>String(r[0]||'').replace(/\s+/g,' ').trim().toLowerCase()===nm.toLowerCase());
+    if(i<0)throw new Error('paket tidak ditemukan di sheet DATA');
+    const row=i+2,rng={sheetId:gid,startRowIndex:row-1,endRowIndex:row,startColumnIndex:1,endColumnIndex:2};
+    const c=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/'+id+'?ranges='+encodeURIComponent('DATA!B'+row)+'&fields=sheets.data.rowData.values(userEnteredValue,note)')).json();
+    const cell=(((c.sheets||[])[0]||{}).data||[{}])[0].rowData?.[0]?.values?.[0]||{},f=cell.userEnteredValue&&cell.userEnteredValue.formulaValue,note=cell.note||'';
+    let req;
+    if(nilai){
+      const m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(nilai);if(!m)throw new Error('tanggal tidak valid');
+      const serial=(Date.UTC(+m[1],+m[2]-1,+m[3])-Date.UTC(1899,11,30))/864e5,v={userEnteredValue:{numberValue:serial},userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd mmmm yyyy'}}};
+      if(f){v.note='Rumus asli: '+f;req={updateCells:{range:rng,rows:[{values:[v]}],fields:'userEnteredValue,note,userEnteredFormat.numberFormat'}}}
+      else req={updateCells:{range:rng,rows:[{values:[v]}],fields:'userEnteredValue,userEnteredFormat.numberFormat'}};
+    }else{
+      const mm=/^Rumus asli: (=[\s\S]*)$/.exec(note);
+      if(!mm){status(f?'Tanggal sudah mengikuti MDP Fisik.':'Rumus asli tidak ditemukan; tanggal tidak diubah.',f?'ok':'bad');return}
+      req={updateCells:{range:rng,rows:[{values:[{userEnteredValue:{formulaValue:mm[1]},note:''}]}],fields:'userEnteredValue,note'}};
+    }
+    await sheetsPost('https://sheets.googleapis.com/v4/spreadsheets/'+id+':batchUpdate',{requests:[req]});
+    if(nilai){R.tanggal=nilai;S[MODE].DC[norm(cur)]=R;simpanLokal(MODE)}
+    status(nilai?'Tanggal MDP disimpan: '+esc(tglP(nilai))+'. Pilih "↺ Ikut Fisik" untuk kembali mengikuti MDP Fisik.':'Tanggal MDP kembali mengikuti MDP Fisik.','ok');
+    setTimeout(()=>segarDetail(MODE,cur),1500);
+  }catch(e){status('Gagal menyimpan tanggal: '+esc(e.message),'bad')}
+}
 // nama admin per paket dari spreadsheet PROGRESS (sheet "paket pl")
 let ADM=ls.get('dpp_admin')||{};
 const adm=p=>p&&(ADM[MODE]||{})[norm(p.n)]||'';
@@ -333,11 +362,12 @@ function drawRing(r){
 }
 function isian(r){
   const opsi=(D.opsiMasa||[]).slice();if(r.masa&&!opsi.includes(r.masa))opsi.unshift(r.masa);
-  let h=`<label class="f"><span>Tanggal MDP</span>${r.tanggalEdit===false?`<div class="ro">${esc(tglP(r.tanggal)||'Belum ada')}</div>`:`<input type="date" id="iTgl" value="${esc(r.tanggal)}">`}${r.catatanTanggal?`<small>${esc(r.catatanTanggal)}</small>`:''}</label>`;
+  let h=`<label class="f"><span>Tanggal MDP</span>${r.tanggalEdit===false?(MODE==='pengawasan'?`<div class="pbrow"><input type="date" id="iTgl2" value="${esc(r.tanggal)}"><button type="button" id="tglFis" class="pbb" title="Kembalikan tanggal agar mengikuti MDP Fisik">↺ Ikut Fisik</button></div><small>Default mengikuti MDP Fisik Murni; ubah bila tanggal MDP pengawasan berbeda.</small>`:`<div class="ro">${esc(tglP(r.tanggal)||'Belum ada')}</div>`):`<input type="date" id="iTgl" value="${esc(r.tanggal)}">`}${r.catatanTanggal&&!(r.tanggalEdit===false&&MODE==='pengawasan')?`<small>${esc(r.catatanTanggal)}</small>`:''}</label>`;
   h+=`<label class="f"><span>Masa pelaksanaan</span>${r.masaEdit?`<select id="iMasa"><option value="">${esc(r.masaOtomatis||'— pilih —')}</option>${opsi.map(o=>`<option ${o===r.masa?'selected':''} value="${esc(o)}">${esc(o)} hari</option>`).join('')}</select>`:`<div class="ro">${esc(r.masa?r.masa+' hari':'—')}</div>`}${r.catatanMasa?`<small>${esc(r.catatanMasa)}</small>`:''}</label>`;
   if(D.hps)h+=`<label class="f full"><span>HPS (Rp)</span><input inputmode="numeric" id="iHps" value="${esc(r.hps?rp(r.hps):'')}" placeholder="contoh 165.400.000"></label>`;
   $('#isian').innerHTML=h;
   const t=$('#iTgl');if(t)t.onchange=()=>simpan({tanggal:t.value},'#sv1','Menyimpan tanggal MDP…');
+  const t2=$('#iTgl2');if(t2){t2.onchange=()=>tglPws(t2.value||null);$('#tglFis').onclick=()=>tglPws(null)}
   const m=$('#iMasa');if(m)m.onchange=()=>simpan({masa:m.value},'#sv1','Menyimpan masa pelaksanaan…');
   const hp=$('#iHps');if(hp){hp.oninput=()=>{const v=hp.value.replace(/[^\d]/g,'');hp.value=v?Number(v).toLocaleString('id-ID'):''};hp.onchange=()=>simpan({hps:hp.value},'#sv1','Menyimpan HPS…')}
 }
@@ -400,7 +430,7 @@ function cekKl(){
   if(!R)return [];const r=R,it=[],ad=v=>!kos(v)&&String(v).trim()!=='';
   const A=(g,label,ok,el,src)=>it.push({g,label,ok:!!ok,el,src});
   A('Data paket','No MDP',ad(r.mdp),null,'sheet DATA');
-  A('Data paket','Tanggal MDP',ad(r.tanggal),r.tanggalEdit===false?null:'#iTgl',r.tanggalEdit===false?'ikut paket fisik':'');
+  A('Data paket','Tanggal MDP',ad(r.tanggal),r.tanggalEdit===false?(MODE==='pengawasan'?'#iTgl2':null):'#iTgl',r.tanggalEdit===false&&MODE!=='pengawasan'?'ikut paket fisik':'');
   A('Data paket','Masa pelaksanaan',ad(r.masa),r.masaEdit?'#iMasa':null,r.masaEdit?'':'sheet DATA');
   A('Data paket','Pagu',ad(r.pagu),null,'sheet DATA');
   A('Data paket','HPS',ad(r.hps),D.hps?'#iHps':null,D.hps?'':'sheet DATA');
