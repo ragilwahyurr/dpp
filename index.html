@@ -226,24 +226,62 @@ function pkBtn(){
 }
 // ===== tambah perusahaan baru (database: FISIK MURNI › DB PERUSAHAAN kolom D-E) =====
 const SS_FIS='1i0m1aj5HdOvvUk0hRCDA6oqM6h9oxrq7rkAniE3IQ2o';
-const PB_BTN='<button type="button" id="pbBtn" class="pbb" aria-expanded="false">+ Baru</button>';
-const PB_FORM='<div id="pbForm" class="pbf" hidden><b>Perusahaan baru</b><label class="f"><span>Nama perusahaan</span><input id="pbNama" placeholder="contoh: CV. MAJU JAYA" autocomplete="off"></label><label class="f"><span>NPWP</span><input id="pbNpwp" inputmode="numeric" placeholder="15/16 digit angka" autocomplete="off"></label><p id="pbMsg" class="pbm" role="status"></p><div class="acts"><button type="button" id="pbSimpan" class="pri">Simpan perusahaan</button><button type="button" id="pbBatal">Batal</button></div></div>';
-document.head.insertAdjacentHTML('beforeend','<style>.pbrow{display:flex;gap:8px}.pbrow select{flex:1}.pbb{flex:none;min-height:46px;background:var(--zone);border:0;color:var(--navy)}.pbf{display:grid;gap:10px;margin-top:8px;padding:14px;border:1px dashed var(--acc);border-radius:12px;background:#fffbea}.pbf[hidden]{display:none}.pbm{margin:0;font-size:13.5px;color:var(--mute)}.pbm.bad{color:var(--bad)}.pbm.ok{color:var(--ok)}</style>');
+const PB_BTN='<button type="button" id="pbBtn" class="pbb" aria-expanded="false">+ Baru</button><button type="button" id="pbEdit" class="pbb" title="Edit nama/NPWP perusahaan terpilih">✎ Edit</button>';
+const PB_FORM='<div id="pbForm" class="pbf" hidden><b id="pbJudul">Perusahaan baru</b><label class="f"><span>Nama perusahaan</span><input id="pbNama" placeholder="contoh: CV. MAJU JAYA" autocomplete="off"></label><label class="f"><span>NPWP</span><input id="pbNpwp" inputmode="numeric" placeholder="15/16 digit angka" autocomplete="off"></label><p id="pbMsg" class="pbm" role="status"></p><div class="acts"><button type="button" id="pbSimpan" class="pri">Simpan perusahaan</button><button type="button" id="pbBatal">Batal</button></div></div>';
+document.head.insertAdjacentHTML('beforeend','<style>.pbrow{display:flex;gap:8px}.pbrow select{flex:1;min-width:0}.pbb{flex:none;min-height:46px;background:var(--zone);border:0;color:var(--navy);padding:0 12px}.pbf{display:grid;gap:10px;margin-top:8px;padding:14px;border:1px dashed var(--acc);border-radius:12px;background:#fffbea}.pbf[hidden]{display:none}.pbm{margin:0;font-size:13.5px;color:var(--mute)}.pbm.bad{color:var(--bad)}.pbm.ok{color:var(--ok)}</style>');
 const kunciPT=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'').replace(/^(cv|pt)/,'');
+// sumber daftar perusahaan yang bisa diubah: database Fisik Murni (D-E), JADWAL LPSE RAGIL (DATA X-Y), dan isian manual Perencanaan/Pengawasan (D-E)
+const SS_ALL={fisik:SS_FIS,perencanaan:'1zdQ1i_QD8zG48t7bIZOArY_5_MYf5sSWAmIPxT7dvz8',pengawasan:'1jjM-aGRRdb7P1MeUn5iF4LTT4q-19x0HbkFwfLYs7Ig'};
+const SUMBER_PT=[{id:SS_FIS,sh:"'DB PERUSAHAAN'",c1:'D',c2:'E',r0:2},{id:'1pWBOykuWLZ71BMcU_d1egbI9NsQulqOD_ni7O-uKpwg',sh:'DATA',c1:'X',c2:'Y',r0:3},{id:SS_ALL.perencanaan,sh:"'DB PERUSAHAAN'",c1:'D',c2:'E',r0:2},{id:SS_ALL.pengawasan,sh:"'DB PERUSAHAAN'",c1:'D',c2:'E',r0:2}];
+async function sheetsPost(url,body){await perluToken();const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+TOK.t,'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('Sheets '+r.status);return r.json()}
+async function ubahPerusahaan(lama,nama,npwp){
+  let kena=0;
+  for(const s of SUMBER_PT){
+    let v;try{v=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/'+s.id+'/values/'+encodeURIComponent(s.sh+'!'+s.c1+s.r0+':'+s.c2+'1000'))).json()}catch(e){continue}
+    const data=[];(v.values||[]).forEach((r,i)=>{if(kunciPT(r[0])&&kunciPT(r[0])===kunciPT(lama[0])){const b=s.r0+i;data.push({range:s.sh+'!'+s.c1+b+':'+s.c2+b,values:[[nama,npwp]]})}});
+    if(data.length){await sheetsPost('https://sheets.googleapis.com/v4/spreadsheets/'+s.id+'/values:batchUpdate',{valueInputOption:'RAW',data});kena+=data.length}
+  }
+  if(!kena){ // tidak ketemu di sumber mana pun: tambahkan ke database Fisik Murni
+    const v=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/'+SS_FIS+'/values/'+encodeURIComponent("'DB PERUSAHAAN'!D2:E1000"))).json();const b=(v.values||[]).length+2;
+    await sheetsPost('https://sheets.googleapis.com/v4/spreadsheets/'+SS_FIS+'/values:batchUpdate',{valueInputOption:'RAW',data:[{range:"'DB PERUSAHAAN'!D"+b+':E'+b,values:[[nama,npwp]]}]});
+  }
+  if(nama!==lama[0]){ // ganti nama perusahaan di data kontrak semua paket (Fisik, Perencanaan, Pengawasan)
+    for(const id of Object.values(SS_ALL)){try{await sheetsPost('https://sheets.googleapis.com/v4/spreadsheets/'+id+':batchUpdate',{requests:[{findReplace:{find:lama[0],replacement:nama,allSheets:true,matchCase:true,matchEntireCell:true}}]})}catch(e){}}
+  }
+  for(const m of MODES){const sd=S[m];if(sd.D&&sd.D.perusahaan){const p=sd.D.perusahaan.find(x=>x[0]===lama[0]);if(p){p[0]=nama;p[1]=npwp}else if(m===MODE)sd.D.perusahaan.push([nama,npwp]);sd.D.perusahaan.sort((a,b)=>a[0].localeCompare(b[0],'id'))}
+    if(sd.DC)for(const k in sd.DC){const kt=sd.DC[k]&&sd.DC[k].kontrak;if(kt)for(const f in kt)if(kt[f]===lama[0])kt[f]=nama}
+    simpanLokal(m)}
+}
 function pasangPB(){
-  const b=$('#pbBtn'),f=$('#pbForm');if(!b||!f)return;
+  const b=$('#pbBtn'),be=$('#pbEdit'),f=$('#pbForm');if(!b||!f)return;
+  let mode='baru',lama=null;
   const msg=(t,c)=>{const m=$('#pbMsg');m.textContent=t||'';m.className='pbm '+(c||'')};
-  b.onclick=()=>{f.hidden=!f.hidden;b.setAttribute('aria-expanded',!f.hidden);if(!f.hidden){msg('');$('#pbNama').focus()}};
+  const buka=(md)=>{
+    if(!f.hidden&&mode===md){f.hidden=true;return}
+    mode=md;msg('');$('#pbSimpan').disabled=false;
+    if(md==='edit'){const sel=$('#kontrak select[data-k]'),p=sel&&D.perusahaan.find(x=>x[0]===sel.value);
+      if(!p){f.hidden=true;return status('Pilih dulu perusahaan yang mau diedit.','bad')}
+      lama=[p[0],p[1]];$('#pbJudul').textContent='Edit perusahaan';$('#pbNama').value=p[0];$('#pbNpwp').value=String(p[1]||'').replace(/[^\d]/g,'');$('#pbSimpan').textContent='Simpan perubahan'}
+    else{lama=null;$('#pbJudul').textContent='Perusahaan baru';$('#pbNama').value='';$('#pbNpwp').value='';$('#pbSimpan').textContent='Simpan perusahaan'}
+    f.hidden=false;b.setAttribute('aria-expanded',md==='baru');$('#pbNama').focus()};
+  b.onclick=()=>buka('baru');if(be)be.onclick=()=>buka('edit');
   $('#pbBatal').onclick=()=>{f.hidden=true;b.setAttribute('aria-expanded','false')};
   $('#pbNpwp').oninput=e=>{e.target.value=e.target.value.replace(/[^\d]/g,'')};
   $('#pbSimpan').onclick=async()=>{
-    const nama=$('#pbNama').value.replace(/\s+/g,' ').trim().toUpperCase(),npwp=$('#pbNpwp').value.replace(/[^\d]/g,'');
+    const nm0=$('#pbNama').value.replace(/\s+/g,' ').trim(),nama=lama?nm0:nm0.toUpperCase(),npwp=$('#pbNpwp').value.replace(/[^\d]/g,'');
     if(nama.length<4)return msg('Isi nama perusahaan.','bad');
     if(npwp.length<15||npwp.length>16)return msg('NPWP harus 15 atau 16 digit angka.','bad');
-    const sama=D.perusahaan.find(p=>kunciPT(p[0])===kunciPT(nama)||(p[1]&&p[1].replace(/[^\d]/g,'')===npwp));
-    if(sama)return msg('Sudah ada di database: '+sama[0]+' (NPWP '+sama[1]+'). Pilih dari daftar.','bad');
+    const sama=D.perusahaan.find(p=>(!lama||p[0]!==lama[0])&&(kunciPT(p[0])===kunciPT(nama)||(p[1]&&String(p[1]).replace(/[^\d]/g,'')===npwp)));
+    if(sama)return msg('Sudah ada di database: '+sama[0]+' (NPWP '+sama[1]+').'+(lama?'':' Pilih dari daftar.'),'bad');
+    if(lama&&nama===lama[0]&&npwp===String(lama[1]||'').replace(/[^\d]/g,''))return msg('Tidak ada yang berubah.','bad');
     const btn=$('#pbSimpan');btn.disabled=true;msg('Menyimpan ke database…');
     try{
+      if(lama){
+        await ubahPerusahaan(lama,nama,npwp);
+        if(R){kontrak(R);const s=$('#kontrak select[data-k]');if(s){s.value=nama;s.dispatchEvent(new Event('change'))}}
+        status('Data perusahaan diperbarui: '+esc(nama)+' (NPWP '+esc(npwp)+').'+(nama!==lama[0]?' Nama lama di data kontrak paket lain ikut diganti.':''),'ok');
+        return;
+      }
       const rg="'DB PERUSAHAAN'!D2:E1000";
       const v=await (await gapi('https://sheets.googleapis.com/v4/spreadsheets/'+SS_FIS+'/values/'+encodeURIComponent(rg))).json();
       const baris=(v.values||[]).length+2;
