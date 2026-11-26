@@ -301,8 +301,9 @@ body:not(.m-rab) .onlyrab{display:none!important}
       </label>
       <div class="err" id="rcerr"></div>
       <div class="sshbox"><strong>SSH pembanding</strong> <span id="sshst" style="color:var(--mut)"></span>
-        <div class="row"><label class="b" for="sshfile" style="cursor:pointer">Unggah SSH terbaru (.xlsx / .xls / .csv)</label><input type="file" id="sshfile" accept=".xlsx,.xls,.csv" hidden><button class="b" id="sshdel" type="button" hidden>Hapus SSH</button></div>
-        <small style="color:var(--mut)">Dipakai untuk membandingkan harga semen, besi tulangan, dan material quarry. SSH disimpan di peramban ini saja. Tanpa unggahan, aplikasi memakai sheet SSH di berkas konsultan bila ada.</small></div>
+        <div class="row"><label class="b" for="sshfile" style="cursor:pointer">Unggah SSH terbaru (.xlsx / .xls / .csv / .pdf)</label><input type="file" id="sshfile" accept=".xlsx,.xls,.csv,.pdf,application/pdf" hidden><button class="b" id="sshdel" type="button" hidden>Hapus SSH</button></div>
+        <small style="color:var(--mut)">Dipakai untuk membandingkan harga semen, besi tulangan, dan material quarry. SSH disimpan di peramban ini saja. Tanpa unggahan, aplikasi memakai sheet SSH di berkas konsultan bila ada. PDF hasil scan (gambar) tidak bisa dibaca; isi harganya di bawah.</small>
+        <details class="set" id="sshman" style="margin-top:8px"><summary>Isi / ubah harga SSH manual</summary><div class="ttd" id="sshmanf" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))"></div><button class="b" id="sshmansave" type="button" style="margin-top:8px">Simpan harga SSH</button></details></div>
     </div>
     <div class="card sum" aria-live="polite">
       <h2>Ringkasan pemeriksaan RAB</h2>
@@ -2120,11 +2121,12 @@ function hargaSsh(sheets) {
   const out = [], ok = s => /^(ssh|shs|standar)/i.test(s.name.trim()) || /satuan harga/i.test(s.name);
   for (const S of sheets.filter(ok)) for (const row of S.grid || []) {
     const ent = Object.entries(row.c).map(([k, v]) => [+k, v]).sort((a, b) => a[0] - b[0]);
-    const strs = ent.filter(([, v]) => typeof v === 'string' && /[a-z]/i.test(v) && !/^\d+(\.\d+){3,}/.test(v)).map(([, v]) => txt(v));
+    const strs = ent.filter(([, v]) => typeof v === 'string').map(([, v]) => txt(String(v).replace(/^\s*\d+(\.\d+){3,}\s*/, ''))).filter(v => /[a-z]/i.test(v));
     const hrg = ent.filter(([, v]) => isNum(v) && v >= 50).pop();
     if (!strs.length || !hrg) continue;
-    const sat = strs.find(x => /^(m3|m³|kg|zak|sak|btg|batang|buah|bh|m2|m'|ls|unit|liter|lembar|lbr|set)$/i.test(x)) || '';
-    const teks = strs.filter(x => x !== sat).join(' ');
+    const SATRE = /^(m3|m³|kg|zak|sak|btg|batang|buah|bh|m2|m'|ls|unit|liter|lembar|lbr|set)$/i;
+    let sat = strs.find(x => SATRE.test(x)) || '', teks = strs.filter(x => x !== sat).join(' ');
+    if (!sat) { const lw = teks.match(/\s(\S+)$/); if (lw && SATRE.test(lw[1])) { sat = lw[1]; teks = teks.slice(0, -lw[0].length); } }
     out.push({ teks, sat, harga: hrg[1], sh: S.name.trim(), r: row.r });
   }
   return out;
@@ -2170,9 +2172,107 @@ function parseCsv(text) {
   return [{ name: 'SSH', rows: [], grid }];
 }
 
+/* ---------- PDF teks (SSH ekspor SIPD dsb.) ---------- */
+async function inflateZ(u8) { try { const ds = new DecompressionStream('deflate'); const s = new Blob([u8]).stream().pipeThrough(ds); return new Uint8Array(await new Response(s).arrayBuffer()); } catch (e) { try { const ds = new DecompressionStream('deflate-raw'); const s = new Blob([u8.subarray(2)]).stream().pipeThrough(ds); return new Uint8Array(await new Response(s).arrayBuffer()); } catch (e2) { return null; } } }
+const l1 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return s; };
+async function pdfText(buf) {
+  const u8 = new Uint8Array(buf), S = l1(u8), obj = new Map();
+  const re = /(\d+)\s+(\d+)\s+obj\b/g; let m;
+  const starts = []; while ((m = re.exec(S))) starts.push([+m[1], m.index + m[0].length]);
+  for (let i = 0; i < starts.length; i++) {
+    const [n, a] = starts[i], end = S.indexOf('endobj', a), b = end < 0 ? (starts[i + 1] ? starts[i + 1][1] : S.length) : end;
+    const body = S.slice(a, b), si = body.search(/\bstream\r?\n/);
+    if (si < 0) { obj.set(n, { dict: body }); continue; }
+    const dict = body.slice(0, si), ds = a + si + body.slice(si).match(/^stream\r?\n/)[0].length;
+    const lm = dict.match(/\/Length\s+(\d+)(\s+\d+\s+R)?/); let len = lm && !lm[2] ? +lm[1] : -1;
+    if (len < 0 || S.slice(ds + len, ds + len + 30).indexOf('endstream') < 0) len = S.indexOf('endstream', ds) - ds;
+    obj.set(n, { dict, raw: u8.subarray(ds, ds + len) });
+  }
+  const data = async o => { if (!o || !o.raw) return ''; if (o.txt != null) return o.txt; let d = o.raw; if (/FlateDecode/.test(o.dict)) d = await inflateZ(d) || new Uint8Array(); return (o.txt = l1(d)); };
+  // object streams
+  for (const [, o] of [...obj]) if (/\/Type\s*\/ObjStm/.test(o.dict)) {
+    const t = await data(o), first = +(o.dict.match(/\/First\s+(\d+)/) || [])[1], nn = +(o.dict.match(/\/N\s+(\d+)/) || [])[1];
+    const hdr = t.slice(0, first).trim().split(/\s+/).map(Number);
+    for (let k = 0; k < nn; k++) { const id = hdr[2 * k], off = first + hdr[2 * k + 1], nx = k + 1 < nn ? first + hdr[2 * k + 3] : t.length; if (!obj.has(id)) obj.set(id, { dict: t.slice(off, nx) }); }
+  }
+  const ref = s => { const r = String(s || '').match(/^\s*(\d+)\s+\d+\s+R/); return r ? obj.get(+r[1]) : null; };
+  const val = (dict, key) => { const i = dict.search(new RegExp('/' + key + '(?![A-Za-z])')); if (i < 0) return null; let r = dict.slice(i + key.length + 1).trimStart(); if (/^\d+\s+\d+\s+R/.test(r)) { const o = ref(r); return o ? o.dict : ''; } if (r[0] === '<' && r[1] === '<') { let d = 0, j = 0; for (; j < r.length; j++) { if (r.startsWith('<<', j)) { d++; j++; } else if (r.startsWith('>>', j)) { d--; j++; if (!d) break; } } return r.slice(0, j + 1); } if (r[0] === '[') return r.slice(0, r.indexOf(']') + 1); return r.split(/[\s/>]/)[0]; };
+  const cmaps = new Map();
+  async function fontInfo(fdict) {
+    const tu = fdict.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/); let map = null, two = /Identity-H|\/Type0/.test(fdict);
+    if (tu) { if (!cmaps.has(tu[1])) { const t = await data(obj.get(+tu[1])), mp = {}; let w = 1; const hx = h => parseInt(h, 16), u = h => { let s = ''; for (let i = 0; i < h.length; i += 4) s += String.fromCharCode(hx(h.substr(i, 4))); return s; };
+      const cs = t.match(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*endcodespacerange/); if (cs) w = cs[1].length / 2;
+      for (const blk of t.match(/beginbfchar[\s\S]*?endbfchar/g) || []) for (const x of blk.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) mp[hx(x[1])] = u(x[2]);
+      for (const blk of t.match(/beginbfrange[\s\S]*?endbfrange/g) || []) for (const x of blk.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(<([0-9a-fA-F]+)>|\[([^\]]*)\])/g)) { const a = hx(x[1]), b = hx(x[2]); if (x[4]) { const base = hx(x[4]); for (let c = a; c <= b; c++) mp[c] = String.fromCharCode(base + c - a); } else { const arr = [...x[5].matchAll(/<([0-9a-fA-F]+)>/g)]; for (let c = a; c <= b; c++) if (arr[c - a]) mp[c] = u(arr[c - a][1]); } }
+      cmaps.set(tu[1], { mp, w }); } const c = cmaps.get(tu[1]); map = c.mp; two = c.w === 2; }
+    const wd = {}; let dw = two ? 1000 : 500;
+    if (/\/Type0/.test(fdict)) { const df = val(fdict, 'DescendantFonts') || ''; const dref = df.match(/(\d+)\s+\d+\s+R/); const dd = dref ? (obj.get(+dref[1]) || {}).dict || '' : df; const dwm = dd.match(/\/DW\s+(\d+)/); if (dwm) dw = +dwm[1];
+      let W = ''; const wi = dd.search(/\/W\s*(\[|\d)/); if (wi >= 0) { const rest = dd.slice(wi + 2).trimStart(); if (/^\d+\s+\d+\s+R/.test(rest)) W = (ref(rest) || {}).dict || ''; else { let d = 0, j = 0; for (; j < rest.length; j++) { if (rest[j] === '[') d++; else if (rest[j] === ']' && !--d) break; } W = rest.slice(0, j + 1); } }
+      const tk = W.replace(/^\s*\[|\]\s*$/g, '').match(/\[[^\]]*\]|[\d.]+/g) || []; for (let i = 0; i < tk.length;) { const a = +tk[i]; if (tk[i + 1] && tk[i + 1][0] === '[') { tk[i + 1].slice(1, -1).trim().split(/\s+/).forEach((w, k) => wd[a + k] = +w); i += 2; } else { const b = +tk[i + 1], w = +tk[i + 2]; for (let c = a; c <= b; c++) wd[c] = w; i += 3; } } }
+    else { const fc = +((fdict.match(/\/FirstChar\s+(\d+)/) || [])[1] || 0); let ws = val(fdict, 'Widths') || ''; (ws.match(/[\d.]+/g) || []).forEach((w, k) => wd[fc + k] = +w); if (!Object.keys(wd).length) dw = 550; }
+    return { map, two, wd, dw };
+  }
+  const items = [];
+  const pages = [...obj.values()].filter(o => /\/Type\s*\/Page(?!s)/.test(o.dict));
+  for (let pi = 0; pi < pages.length; pi++) {
+    const P = pages[pi], res = val(P.dict, 'Resources') || '', fd = val(res, 'Font') || '', fonts = {};
+    for (const x of fd.matchAll(/\/([^\s/<>\[\]]+)\s+(\d+)\s+\d+\s+R/g)) fonts[x[1]] = await fontInfo((obj.get(+x[2]) || {}).dict || '');
+    const cr = P.dict.match(/\/Contents\s*(\[[^\]]*\]|\d+\s+\d+\s+R)/); if (!cr) continue;
+    let content = ''; for (const r of cr[1].matchAll(/(\d+)\s+\d+\s+R/g)) { const o = obj.get(+r[1]); if (o && o.raw) content += (await data(o)) + '\n'; else if (o && /^\s*\[/.test(o.dict)) for (const r2 of o.dict.matchAll(/(\d+)\s+\d+\s+R/g)) content += (await data(obj.get(+r2[1]))) + '\n'; }
+    const mul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3], a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]];
+    let ctm = [1, 0, 0, 1, 0, 0], stack = [], tm = [1, 0, 0, 1, 0, 0], lm = [1, 0, 0, 1, 0, 0], font = null, fs = 10, tl = 0; const ops = [];
+    const tokRe = /\s*(\((?:\\[\s\S]|[^\\)])*\)|<[0-9a-fA-F\s]*>|\[|\]|\/[^\s/\[\]()<>]+|-?[\d.]+|[A-Za-z'"*]+[0-9]?|<<|>>|.)/g;
+    // literal strings may contain nested parens; handle simple cases
+    const unesc = s => s.replace(/\\([nrtbf()\\]|[0-7]{1,3})/g, (q, c) => ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' })[c] ?? String.fromCharCode(parseInt(c, 8)));
+    const decode = (raw, hex) => { let bytes = hex ? raw.replace(/\s/g, '').replace(/(..)/g, (q) => String.fromCharCode(parseInt(q, 16))) : unesc(raw); const F = font || {}; let out = ''; const W = c => (F.wd && F.wd[c] != null ? F.wd[c] : (F.dw || 500)) / 1000; if (F.two) { for (let i = 0; i + 1 < bytes.length; i += 2) { const c = bytes.charCodeAt(i) * 256 + bytes.charCodeAt(i + 1); out += F.map && F.map[c] != null ? F.map[c] : ''; wsum += W(c); } } else for (const ch of bytes) { const c = ch.charCodeAt(0); out += F.map && F.map[c] != null ? F.map[c] : ch; wsum += W(c); } return out; };
+    let wsum = 0;
+    const emit = (t, w) => { if (!t) return; const M = mul(tm, ctm), sc = Math.hypot(M[0], M[1]) || 1; items.push({ p: pi, x: M[4], y: M[5], s: fs * sc, t, w: w * sc }); };
+    const adv = w => { tm = mul([1, 0, 0, 1, w, 0], tm); };
+    let st = []; tokRe.lastIndex = 0; let mt;
+    while ((mt = tokRe.exec(content))) {
+      const k = mt[1]; if (!k) break;
+      if (k[0] === '(' ) { st.push({ s: k.slice(1, -1) }); continue; }
+      if (k[0] === '<' && k !== '<<') { st.push({ h: k.slice(1, -1) }); continue; }
+      if (k === '[' ) { st.push('['); continue; }
+      if (k === ']') { const arr = []; while (st.length && st[st.length - 1] !== '[') arr.unshift(st.pop()); st.pop(); st.push({ a: arr }); continue; }
+      if (/^-?[\d.]+$/.test(k) || k[0] === '/') { st.push(k); continue; }
+      const n = i => +st[st.length - i];
+      switch (k) {
+        case 'q': stack.push(ctm); break; case 'Q': ctm = stack.pop() || [1, 0, 0, 1, 0, 0]; break;
+        case 'cm': ctm = mul([n(6), n(5), n(4), n(3), n(2), n(1)], ctm); break;
+        case 'BT': tm = lm = [1, 0, 0, 1, 0, 0]; break;
+        case 'Tf': font = fonts[String(st[st.length - 2]).slice(1)] || null; fs = n(1); break;
+        case 'TL': tl = n(1); break;
+        case 'Tm': tm = lm = [n(6), n(5), n(4), n(3), n(2), n(1)]; break;
+        case 'Td': tm = lm = mul([1, 0, 0, 1, n(2), n(1)], lm); break;
+        case 'TD': tl = -n(1); tm = lm = mul([1, 0, 0, 1, n(2), n(1)], lm); break;
+        case 'T*': tm = lm = mul([1, 0, 0, 1, 0, -tl], lm); break;
+        case 'Tj': case "'": case '"': { if (k !== 'Tj') tm = lm = mul([1, 0, 0, 1, 0, -tl], lm); const o = st[st.length - 1]; wsum = 0; const t = o && (o.s != null ? decode(o.s) : o.h != null ? decode(o.h, true) : ''); const w = wsum * fs; emit(t, w); adv(w); break; }
+        case 'TJ': { const o = st[st.length - 1]; if (!o || !o.a) break; let buf = ''; wsum = 0; for (const e of o.a) { if (typeof e === 'string') { if (+e < -250) buf += ' '; wsum -= +e / 1000; } else buf += e.s != null ? decode(e.s) : decode(e.h, true); } const w = wsum * fs; emit(buf, w); adv(w); break; }
+      }
+      st = [];
+    }
+  }
+  // kelompokkan per baris
+  const grid = []; let r = 0;
+  const byPage = {}; items.forEach(i => (byPage[i.p] = byPage[i.p] || []).push(i));
+  for (const p of Object.keys(byPage).sort((a, b) => a - b)) {
+    const L = byPage[p].filter(i => i.t.trim()); const ysign = 1;
+    L.sort((a, b) => Math.abs(a.y - b.y) > Math.min(a.s, b.s) * 0.4 ? (b.y - a.y) * ysign : a.x - b.x);
+    const lines = []; for (const it of L) { const ln = lines.find(l => Math.abs(l.y - it.y) <= Math.min(l.s, it.s) * 0.4); if (ln) ln.it.push(it); else lines.push({ y: it.y, s: it.s, it: [it] }); }
+    for (const ln of lines) {
+      ln.it.sort((a, b) => a.x - b.x); const cells = []; let cur = null;
+      for (const it of ln.it) { if (cur && it.x - (cur.x + cur.w) < it.s * 0.9) { cur.t += (it.x - (cur.x + cur.w) > it.s * 0.12 && !/\s$/.test(cur.t) ? ' ' : '') + it.t; cur.w = it.x + it.w - cur.x; } else { cur = { x: it.x, w: it.w, t: it.t }; cells.push(cur); } }
+      const c = {}; cells.forEach((x, i) => { const v = x.t.replace(/\s+/g, ' ').trim(); const num = v.replace(/^rp\.?\s*/i, ''); c[i] = /^\d{1,3}(\.\d{3})+(,\d+)?$|^\d+(,\d+)?$/.test(num) ? +num.replace(/\./g, '').replace(',', '.') : v; });
+      grid.push({ r: ++r, c, f: {} });
+    }
+  }
+  return { grid, nTeks: items.length };
+}
+
 /*ENDRAB*/
 
-return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
+return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, pdfText, kunciMat, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
 })();
 if (typeof module !== 'undefined') module.exports = ENGINE;
 
@@ -2468,15 +2568,28 @@ function rcRender() {
   $('rcdoc').disabled = false; $('rccopy').disabled = false;
 }
 let sshData = null; try { sshData = JSON.parse(localStorage.getItem('spek-ssh') || 'null'); } catch {}
-function sshStatus() { $('sshst').textContent = sshData ? `— ${sshData.label} (${sshData.items.length} item material)` : '— belum diunggah'; $('sshdel').hidden = !sshData; }
+const MANF = [['semen', 'Semen PC', 'zak 50 kg', 'Semen PC 50 kg', 'Zak'], ['besi_polos', 'Besi beton polos', 'kg', 'Besi beton polos', 'Kg'], ['besi_ulir', 'Besi beton ulir', 'kg', 'Besi beton ulir', 'Kg'], ['batu_pecah', 'Batu pecah / split', 'm³', 'Batu pecah', 'M3'], ['batu_gunung', 'Batu gunung / kali', 'm³', 'Batu gunung', 'M3'], ['pasir_beton', 'Pasir beton', 'm³', 'Pasir beton', 'M3'], ['pasir_pasang', 'Pasir pasang', 'm³', 'Pasir pasang', 'M3'], ['pasir_urug', 'Pasir urug', 'm³', 'Pasir urug', 'M3'], ['sirtu', 'Sirtu', 'm³', 'Sirtu', 'M3'], ['tanah_urug', 'Tanah urug', 'm³', 'Tanah urug', 'M3']];
+const kunciDari = t => { const m = ENGINE.kunciMat(t); return m ? m[0] : ''; };
+function sshManFill() { $('sshmanf').innerHTML = MANF.map(([k, lbl, sat]) => { const it = sshData && sshData.items.find(x => kunciDari(x.teks) === k); return `<div><label for="sm_${k}">${lbl} (Rp/${sat})</label><input id="sm_${k}" inputmode="numeric" placeholder="—" value="${it && (k !== 'semen' || /50\s*kg/i.test(it.teks) && /zak|sak/i.test(it.sat)) ? Math.round(it.harga).toLocaleString('id-ID') : ''}"></div>`; }).join(''); }
+$('sshmansave').addEventListener('click', () => {
+  const man = MANF.map(([k, , , teks, sat]) => ({ k, teks, sat, harga: +($('sm_' + k).value || '').replace(/[^\d]/g, '') })).filter(x => x.harga > 0 && !(sshData && sshData.items.some(i => kunciDari(i.teks) === x.k && Math.round(i.harga) === x.harga)));
+  const keep = (sshData ? sshData.items : []).filter(x => !man.some(m => m.k === kunciDari(x.teks)));
+  const items = [...keep, ...man.map(m => ({ teks: m.teks, sat: m.sat, harga: m.harga, sh: 'SSH', r: 0 }))];
+  sshData = items.length ? { label: sshData && keep.length ? sshData.label + ' + input manual' : 'SSH input manual', items } : null;
+  try { sshData ? localStorage.setItem('spek-ssh', JSON.stringify(sshData)) : localStorage.removeItem('spek-ssh'); } catch {}
+  sshStatus(); if (rcSheets) rabCek(); toast('Harga SSH disimpan');
+});
+function sshStatus() { sshManFill(); $('sshst').textContent = sshData ? `— ${sshData.label} (${sshData.items.length} item material)` : '— belum diunggah'; $('sshdel').hidden = !sshData; }
 sshStatus();
 $('sshfile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
-    const sh = /\.csv$/i.test(f.name) ? ENGINE.parseCsv(await f.text()) : await ENGINE.parseXlsx(await f.arrayBuffer());
+    let sh;
+    if (/\.pdf$/i.test(f.name)) { const t = await ENGINE.pdfText(await f.arrayBuffer()); if (!t.nTeks) { $('sshman').open = true; toast('PDF ini hasil scan (gambar), teksnya tidak bisa dibaca. Isi harga SSH manual.'); return; } sh = [{ name: 'SSH', grid: t.grid }]; }
+    else sh = /\.csv$/i.test(f.name) ? ENGINE.parseCsv(await f.text()) : await ENGINE.parseXlsx(await f.arrayBuffer());
     const items = ENGINE.parseSshFile(sh);
-    if (!items.length) { toast('Tidak ada harga semen, besi, atau material quarry di file SSH ini'); return; }
-    sshData = { label: 'SSH ' + f.name.replace(/\.(xlsx?|csv)$/i, ''), items };
+    if (!items.length) { $('sshman').open = true; toast('Tidak ada harga semen, besi, atau material quarry di file SSH ini. Isi manual bila perlu.'); return; }
+    sshData = { label: 'SSH ' + f.name.replace(/\.(xlsx?|csv|pdf)$/i, ''), items };
     try { localStorage.setItem('spek-ssh', JSON.stringify(sshData)); } catch {}
     sshStatus(); if (rcSheets) rabCek(); toast(`SSH terbaca: ${items.length} item material`);
   } catch (err) { toast('SSH tidak terbaca: ' + (err.message || err)); }
