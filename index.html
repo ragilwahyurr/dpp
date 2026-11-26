@@ -323,6 +323,43 @@ async function tglPws(nilai){
     setTimeout(()=>segarDetail(MODE,cur),1500);
   }catch(e){status('Gagal menyimpan tanggal: '+esc(e.message),'bad')}
 }
+// ===== tanda personil dobel: Fisik & Pengawasan maks 1 paket per orang, Perencanaan maks 3 paket =====
+const PERS_KOL={perencanaan:{p1:'AM',p2:'AN',p3:'AO',p4:'AP',p5:'AQ',p6:'AU'}},
+  PERS_JUDUL={fisik:{p1:'Personil Pelaksana Lapangan',p2:'Personil Petugas K3'},pengawasan:{p1:'Personil Team Leader',p2:'Personil Tenaga Ahli 2',p3:'Personil Pendukung 1',p4:'Personil Pendukung 2'}},
+  PERS_MAKS={fisik:1,pengawasan:1,perencanaan:3};
+let PERS={};
+const kunciOrg=s=>String(s||'').split(',')[0].toLowerCase().replace(/[^a-z]/g,'');
+const kolHuruf=i=>{let s='';i++;while(i){const r=(i-1)%26;s=String.fromCharCode(65+r)+s;i=(i-1-r)/26}return s};
+async function bacaPersonil(m){
+  try{
+    const id=SS_ALL[m],base='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values';let kol=PERS_KOL[m];
+    if(!kol){const h=await (await gapi(base+'/'+encodeURIComponent('DATA!1:1'))).json(),hd=(h.values||[[]])[0].map(x=>norm(x));kol={};
+      Object.entries(PERS_JUDUL[m]).forEach(([k,j])=>{const i=hd.indexOf(norm(j));if(i>=0)kol[k]=kolHuruf(i)})}
+    const ks=Object.keys(kol);if(!ks.length)return;
+    const r=await (await gapi(base+':batchGet?majorDimension=COLUMNS&'+['G',...ks.map(k=>kol[k])].map(c=>'ranges='+encodeURIComponent('DATA!'+c+'2:'+c+'700')).join('&'))).json();
+    const v=(r.valueRanges||[]).map(x=>(x.values||[[]])[0]||[]),nm=v[0],isi={};
+    nm.forEach((n,i)=>{const p=norm(n);if(!p)return;isi[p]={};ks.forEach((k,j)=>{const x=String(v[j+1][i]||'').trim();if(x&&x!=='-')isi[p][k]=x})});
+    PERS[m]=isi;if(m===MODE&&R)tandaiPersonil();
+  }catch(e){}
+}
+function catatPersonil(k,val){const p=norm(cur);if(!PERS[MODE]||!p)return;(PERS[MODE][p]=PERS[MODE][p]||{})[k]=String(val||'').trim()}
+function tandaiPersonil(){
+  const isiP=PERS[MODE];const maks=PERS_MAKS[MODE]||1,saya=norm(cur);
+  $$('#kontrak input[data-k]').forEach(el=>{
+    const f=D.kontrak.find(x=>x.k===el.dataset.k);if(!f||f.tipe!=='teks')return;
+    let t=el.parentNode.querySelector('.pdob');if(!t){t=document.createElement('small');t.className='pdob';el.after(t)}
+    const kunci=kunciOrg(el.value);if(kunci.length<3){t.textContent='';t.className='pdob';return}
+    const lain=[];if(isiP)Object.entries(isiP).forEach(([p,o])=>{if(p!==saya&&Object.values(o).some(x=>kunciOrg(x)===kunci))lain.push(p)});
+    const nmP=p=>{const q=(D.paket||[]).find(x=>norm(x.n)===p);return q?q.n:p};
+    const samaDiSini=$$('#kontrak input[data-k]').some(o=>o!==el&&kunciOrg(o.value)===kunci);
+    const total=lain.length+1;let pesan='',cls='pdob';
+    if(samaDiSini){pesan='⚠ Nama ini dipakai lebih dari satu jabatan di paket ini.';cls+=' bad'}
+    if(total>maks){pesan=(pesan?pesan+' ':'')+'⚠ Personil dobel: sudah dipakai di '+lain.length+' paket lain'+(MODE==='perencanaan'?' (maks. 3 paket)':'')+' — '+lain.slice(0,4).map(nmP).join('; ')+(lain.length>4?'; …':'');cls='pdob bad'}
+    else if(lain.length){pesan=(pesan?pesan+' ':'')+'Dipakai juga di '+lain.length+' paket lain ('+total+' dari maks. '+maks+'): '+lain.map(nmP).join('; ');if(!samaDiSini)cls='pdob info'}
+    t.textContent=pesan;t.className=cls;
+  });
+}
+document.head.insertAdjacentHTML('beforeend','<style>.pdob{display:block;margin-top:4px;font-size:13px;line-height:1.35}.pdob:empty{display:none}.pdob.bad{color:var(--bad);font-weight:600}.pdob.info{color:var(--mute)}</style>');
 // nama admin per paket dari spreadsheet PROGRESS (sheet "paket pl")
 let ADM=ls.get('dpp_admin')||{};
 const adm=p=>p&&(ADM[MODE]||{})[norm(p.n)]||'';
@@ -386,10 +423,11 @@ function kontrak(r){
     if(f.tipe==='nilai')return `<label class="f"><span>${esc(f.label)} (Rp)</span><input inputmode="numeric" data-k="${f.k}" data-nilai="1" value="${esc(v?rp(v):'')}" placeholder="contoh 17.205.000"></label>`;
     return `<label class="f"><span>${esc(f.label)}</span><input data-k="${f.k}" value="${esc(v)}" placeholder="Nama personil" autocomplete="off"></label>`;
   }).join('');
-  pasangPB();
+  pasangPB();tandaiPersonil();
   $$('#kontrak [data-k]').forEach(el=>{
     if(el.dataset.nilai)el.oninput=()=>{const v=el.value.replace(/[^\d]/g,'');el.value=v?Number(v).toLocaleString('id-ID'):''};
-    el.onchange=()=>{const o={};o[el.dataset.k]=el.value;
+    if(el.tagName==='INPUT'&&!el.dataset.nilai&&!el.readOnly)el.addEventListener('input',()=>tandaiPersonil());
+    el.onchange=()=>{const o={};o[el.dataset.k]=el.value;if(el.tagName==='INPUT'&&!el.dataset.nilai){catatPersonil(el.dataset.k,el.value);tandaiPersonil()}
       if(el.tagName==='SELECT'){const p=D.perusahaan.find(x=>x[0]===el.value),n=$('#iNpwp');if(n)n.value=p?p[1]:'';if(R&&R.kontrak){const nk=D.kontrak.find(f=>f.tipe==='npwp');if(nk)R.kontrak[nk.k]=p?p[1]:''}}
       simpan({kontrak:o},'#sv2','Menyimpan…')};
   });
@@ -525,7 +563,7 @@ async function bacaCache(m){
 }
 let online=false;
 async function mulaiOnline(){
-  if(online)return;online=true;bacaAdmin();
+  if(online)return;online=true;bacaAdmin();MODES.forEach(m=>bacaPersonil(m));
   const hasil=await Promise.all(MODES.map(m=>bacaCache(m).catch(()=>null)));
   // segarkan mode aktif di latar (data terbaru dari spreadsheet)
   segarMuat(MODE);if(cur&&D)segarDetail(MODE,cur);
