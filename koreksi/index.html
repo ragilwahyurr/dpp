@@ -118,6 +118,7 @@ body.m-periksa .fx,body.m-periksa .bar,body.m-periksa .onlyfix{display:none!impo
 body.m-perbaiki .onlycheck{display:none!important}
 body.m-rab .spekonly,body.m-rab .onlycheck,body.m-rab .onlyfix,body.m-rab .bar{display:none!important}
 body:not(.m-rab) .onlyrab{display:none!important}
+.sshbox{margin-top:12px;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;font-size:14px}.sshbox .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px}.mtab{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}.mtab th,.mtab td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}.mtab th{color:var(--mut);font-weight:600}.mtab td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.mtab .up{color:#b42318;font-weight:600}.mtab .ok{color:#067647;font-weight:600}.mtab small{color:var(--mut)}
 .rabmeta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:6px 0 12px;font-size:14px}.rabmeta dt{color:var(--mut)}.rabmeta dd{margin:0;font-weight:500}
 .f .lok{font-size:13px;color:var(--mut)}.f .sr{font-size:14px;color:var(--ink);background:var(--soft);border-radius:8px;padding:6px 10px;margin:0}
 .ttd{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ttd input{width:100%;min-height:40px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:15px Inter;background:var(--field)}.ttd label{font-size:13px;color:var(--mut)}
@@ -299,6 +300,9 @@ body:not(.m-rab) .onlyrab{display:none!important}
           <div><strong id="rclbl">Pilih atau seret file RAB konsultan (.xlsx / .xls)</strong><br><small>Diperiksa: hitungan &amp; total, PPN, pembulatan, terbilang, harga &amp; mark-up, AHSP terbaru, kesesuaian dengan DPA/FISIK MURNI dan spek. File tidak dikirim ke mana pun.</small></div></div>
       </label>
       <div class="err" id="rcerr"></div>
+      <div class="sshbox"><strong>SSH pembanding</strong> <span id="sshst" style="color:var(--mut)"></span>
+        <div class="row"><label class="b" for="sshfile" style="cursor:pointer">Unggah SSH terbaru (.xlsx / .xls / .csv)</label><input type="file" id="sshfile" accept=".xlsx,.xls,.csv" hidden><button class="b" id="sshdel" type="button" hidden>Hapus SSH</button></div>
+        <small style="color:var(--mut)">Dipakai untuk membandingkan harga semen, besi tulangan, dan material quarry. SSH disimpan di peramban ini saja. Tanpa unggahan, aplikasi memakai sheet SSH di berkas konsultan bila ada.</small></div>
     </div>
     <div class="card sum" aria-live="polite">
       <h2>Ringkasan pemeriksaan RAB</h2>
@@ -319,6 +323,7 @@ body:not(.m-rab) .onlyrab{display:none!important}
       <div class="tools"><button class="b" id="rccopy" type="button" disabled>Salin catatan</button></div>
     </div>
   </div>
+  <div id="rcmat"></div>
   <h2 id="rcttl" style="margin-top:22px">Temuan RAB</h2>
   <div class="list" id="rclist"><div class="empty">Belum ada file RAB.</div></div>
 </section>
@@ -1928,6 +1933,7 @@ function analyzeRab(sheets, opt) {
   if (acu.length) add('kritis', 'AHSP', `Analisa masih mengacu ${acu.join(' dan ')}, yang sudah diganti ${AHSP_TERBARU.permen}.`, '', `Gunakan AHSP ${AHSP_TERBARU.label}.`);
   if (seLama.length) add('penting', 'AHSP', `Analisa memakai SE Dirjen Bina Konstruksi ${seLama.join(', ')}. AHSP terbaru: ${AHSP_TERBARU.label}.`, '', 'Mutakhirkan koefisien analisa sesuai SE 47/SE/Dk/2026.');
   if (!acu.length && !se.length) add('info', 'AHSP', 'Acuan AHSP tidak tercantum di berkas RAB/analisa.', '', `Cantumkan acuan ${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}.`);
+  let pakaiBlok = null;
   const anSheets = sheets.filter(s => /analisa|anls|ahsp/i.test(s.name) && !/rekap/i.test(s.name));
   const upahSh = sheets.find(s => /^upah/i.test(s.name.trim())), bahanSh = sheets.find(s => /^bahan/i.test(s.name.trim()));
   const daftarHarga = sh0 => { const m = new Map(); if (!sh0) return m; let cu = null, ch = null; for (const row of sh0.grid) { const ent = Object.entries(row.c).map(([k, v]) => [+k, v]); if (cu == null) { const u = ent.find(([, v]) => /^(uraian|jenis|nama)/i.test(txt(v))), h = ent.find(([, v]) => /upah|harga/i.test(txt(v)) && !/uraian/i.test(txt(v))); if (u && h) { cu = u[0]; ch = h[0]; } continue; } const nm = txt(row.c[cu]), hv = row.c[ch]; if (nm && isNum(hv) && !m.has(nm.toLowerCase())) m.set(nm.toLowerCase(), hv); } return m; };
@@ -1949,7 +1955,7 @@ function analyzeRab(sheets, opt) {
       if (/harga satuan pekerjaan/i.test(labK)) { if (isNum(vj)) { blok.f = vj; blok.fr = row.r; } continue; }
       if (/jumlah/i.test(labK)) { if (isNum(vj)) (blok.sub = blok.sub || []).push(vj); continue; }
       const nm = txt(row.c[C.u] ?? row.c[C.u + 1] ?? ''), koef = row.c[C.k], harga = row.c[C.h];
-      if (nm && isNum(koef) && isNum(harga) && isNum(vj)) blok.rows.push({ nama: nm, koef, harga, jml: vj, r: row.r, col: C.j });
+      if (nm && isNum(koef) && isNum(harga) && isNum(vj)) blok.rows.push({ nama: nm, sat: txt(row.c[C.k - 1] || ''), koef, harga, jml: vj, r: row.r, col: C.j, hcol: C.h });
     }
     flush();
   }
@@ -1988,9 +1994,11 @@ function analyzeRab(sheets, opt) {
     if (salahKode.length) add('kritis', 'Analisa', `${salahKode.length} item RAB memakai kode analisa milik pekerjaan lain, sehingga harga satuannya tidak bisa ditelusuri.`, '', salahKode.slice(0, 8).join('; '));
     if (tak.length) add('penting', 'AHSP', `${tak.length} kode analisa di RAB tidak ada di sheet analisa (kemungkinan kode AHSP lama): ${tak.slice(0, 5).join('; ')}.`, '');
     const tanpa = items.filter(it => it.hs && it.vol && !/^ls$/i.test(it.sat)).length - [...items].filter(it => it.hs && it.vol).filter(it => { const kk = it.kode ? it.kode.replace(/\s+/g, '').replace(/\.$/, '') : ''; return (kk && an.has(kk)) || (it.uraian && namaAn.some(([, x]) => dice(it.uraian, x.nama) > 0.8)); }).length;
-    meta.dipakai = pakai.size;
+    meta.dipakai = pakai.size; pakaiBlok = pakai;
   } else if (items.length) add('penting', 'Analisa', 'Berkas tidak memuat sheet analisa harga satuan, sehingga harga satuan RAB tidak bisa diuji.', '', 'Minta konsultan melampirkan analisa harga satuan (AHSP) yang dipakai.');
 
+  // ---- 2b. Harga material vs SSH
+  meta.material = cekMaterialSsh(sheets, an, pakaiBlok, O.ssh, add);
   // ---- 3. Kesesuaian data
   const nn = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   if (P.nama && meta.nama && nn(meta.nama) !== nn(P.nama)) add('penting', 'Data paket', `Nama pekerjaan di RAB "${meta.nama}" berbeda dengan paket di DPA/FISIK MURNI "${P.nama}".`, id.nama ? sel(sh, id.nama.r, id.nama.c) : '');
@@ -2065,6 +2073,10 @@ function catatanRabDocx(R, info) {
     identTbl,
     par(`Ringkasan: ${F.length} temuan (${n('kritis')} kritis, ${n('penting')} penting, ${n('info')} info). Acuan AHSP terbaru: Permen PUPR Nomor 8 Tahun 2023 dan SE Dirjen Bina Konstruksi Nomor 47/SE/Dk/2026.`, { sz: 20, before: 200, after: 120 }),
     F.length ? tbl(W2, [head, ...rows]) : par('Tidak ada temuan.', { sz: 20 }),
+    ...(() => { const MT = M.material; if (!MT || !MT.rows.length) return []; const W3 = [2300, 3300, 1700, 1900, 1600, 1200]; const rpx = v => 'Rp' + Math.round(v).toLocaleString('id-ID');
+      const h = tr(['Material', 'Di RAB / analisa', 'Harga RAB', 'Harga SSH', 'Selisih', 'Status'].map((t, i) => cell(W3[i], par(t, { b: true, sz: 20, after: 0, jc: 'center' }), { fill: 'D9E2F3' })), true);
+      const rr = MT.rows.map(x => { const up = x.ssh != null && x.selisih > Math.max(1, x.ssh * 0.001); return tr([cell(W3[0], par(x.kat, { sz: 20, after: 0 })), cell(W3[1], par(`${x.nama}\n${x.lok}`, { sz: 18, after: 0 })), cell(W3[2], par(`${rpx(x.rab)}/${x.satuan}`, { sz: 20, after: 0, jc: 'right' })), cell(W3[3], par(x.ssh != null ? `${rpx(x.ssh)}/${x.satuan}` : '-', { sz: 20, after: 0, jc: 'right' })), cell(W3[4], par(x.ssh != null ? `${x.selisih > 0 ? '+' : x.selisih < 0 ? '-' : ''}${rpx(Math.abs(x.selisih))} (${(x.selisih / x.ssh * 100).toFixed(1).replace('.', ',')}%)` : '-', { sz: 20, after: 0, jc: 'right' })), cell(W3[5], par(x.ssh == null ? 'Tidak ada di SSH' : up ? 'Di atas SSH' : 'Di bawah/sama', { sz: 20, after: 0, b: up, color: up ? 'C00000' : '' }))]); });
+      return [par(`Harga semen, besi tulangan, dan material quarry dibandingkan SSH (${MT.sumber || 'SSH belum tersedia'})`, { b: true, sz: 22, before: 240, after: 100 }), tbl(W3, [h, ...rr])]; })(),
     par('Konsultan perencana diminta memperbaiki RAB sesuai catatan di atas dan menyerahkan kembali RAB beserta analisa harga satuan yang telah diperbaiki.', { sz: 20, before: 240, after: 240 }),
     tbl([7000, 5000], [tr([cell(7000, par('', { after: 0 })), cell(5000, par(`Tana Paser, ${I.tanggal || '....................'}\n${I.jabatan || 'Tim Teknis'}\n\n\n\n${I.penandatangan || '(.........................................)'}\n${I.nip ? 'NIP. ' + I.nip : 'NIP. ...............................'}`, { sz: 20, jc: 'center', after: 0 }))])], { noBorder: true })
   ].join('');
@@ -2080,9 +2092,87 @@ function saranRab(f) {
   return { Hitungan: 'Perbaiki perhitungan sesuai rumus volume × harga satuan dan jumlahkan ulang.', PPN: 'Hitung PPN 12% × DPP nilai lain 11/12 (efektif 11%).', Pembulatan: 'Bulatkan ke bawah ke ribuan terdekat.', Terbilang: 'Sesuaikan terbilang dengan nilai total.', Pagu: 'Sesuaikan RAB agar tidak melebihi pagu.', HPS: 'Samakan nilai RAB/HPS atau jelaskan selisihnya.', 'Mark-up': 'Samakan harga satuan RAB dengan hasil analisa atau lampirkan dasar harganya.', Overhead: 'Sesuaikan overhead & profit maksimal 15% dan konsisten dengan yang tercantum.', 'Data paket': 'Samakan identitas paket dengan DPA/FISIK MURNI.', 'Isi RAB': 'Lengkapi atau hapus baris yang dimaksud.', Penomoran: 'Rapikan penomoran bagian RAB.', Uraian: 'Samakan bagian RAB dengan uraian pekerjaan.' }[f.kat] || '';
 }
 
+/* ---------- Material quarry, besi tulangan, semen vs SSH ---------- */
+const MAT = [
+  ['semen', 'Semen (PC)', 'kg', /\bsemen\b(?!.*(putih|warna|nat|instan|mortar|plamir))|\bportland\b|^\s*pc\s*$/i],
+  ['besi_polos', 'Besi beton polos', 'kg', /(besi\s*beton|baja\s*tulangan|besi\s*tulangan).*(polos|bjtp|u-?24)|besi\s*polos|bjtp/i],
+  ['besi_ulir', 'Besi beton ulir', 'kg', /(besi\s*beton|baja\s*tulangan|besi\s*tulangan).*(ulir|bjts|u-?3\d|u-?40)|besi\s*ulir|bjts/i],
+  ['besi', 'Besi beton', 'kg', /besi\s*beton|baja\s*tulangan|besi\s*tulangan/i],
+  ['batu_pecah', 'Batu pecah / split', 'm3', /batu\s*pecah|split|koral|batu\s*kerikil|kerikil/i],
+  ['batu_gunung', 'Batu gunung / kali / belah', 'm3', /batu\s*(gunung|kali|belah)/i],
+  ['pasir_beton', 'Pasir beton', 'm3', /pasir\s*(untuk\s*)?(beton|cor)/i],
+  ['pasir_pasang', 'Pasir pasang', 'm3', /pasir\s*(pasang|pasangan)/i],
+  ['pasir_urug', 'Pasir urug', 'm3', /pasir\s*urug/i],
+  ['sirtu', 'Sirtu', 'm3', /sirtu/i],
+  ['tanah_urug', 'Tanah urug', 'm3', /tanah\s*(urug|timbun)/i]
+];
+const satNorm = s => { const t = String(s || '').toLowerCase().replace(/[\s.]/g, ''); if (/^(m3|m³|kubik)/.test(t)) return 'm3'; if (/^kg|kilo/.test(t)) return 'kg'; if (/^(zak|sak)/.test(t)) return 'zak'; if (/^(btg|batang|lonjor)/.test(t)) return 'btg'; if (/^(bh|buah|pcs)/.test(t)) return 'buah'; return t; };
+function kunciMat(teks) { if (/semen/i.test(teks) && /(putih|warna|nat|instan|mortar|plamir)/i.test(teks)) return null; for (const m of MAT) if (m[3].test(teks)) return m; return null; }
+function perSatuan(m, harga, sat, teks) {
+  const s = satNorm(sat);
+  if (m[2] === 'm3') return s === 'm3' ? harga : null;
+  if (m[0] === 'semen') { if (s === 'kg') return harga; const kg = +((String(teks).match(/(40|50)\s*kg/i) || [])[1] || 0); if ((s === 'zak' || s === 'buah') && kg) return harga / kg; if (s === 'zak' || s === 'buah') return harga / 40; return null; }
+  if (s === 'kg') return harga;
+  if (s === 'btg' || s === 'batang') { const d = +((String(teks).match(/(?:dia\.?|d|ø)\s*(\d{1,2})\s*mm/i) || [])[1] || 0); if (d) return harga / (0.006165 * d * d * 12); return null; }
+  return null;
+}
+function hargaSsh(sheets) {
+  const out = [], ok = s => /^(ssh|shs|standar)/i.test(s.name.trim()) || /satuan harga/i.test(s.name);
+  for (const S of sheets.filter(ok)) for (const row of S.grid || []) {
+    const ent = Object.entries(row.c).map(([k, v]) => [+k, v]).sort((a, b) => a[0] - b[0]);
+    const strs = ent.filter(([, v]) => typeof v === 'string' && /[a-z]/i.test(v) && !/^\d+(\.\d+){3,}/.test(v)).map(([, v]) => txt(v));
+    const hrg = ent.filter(([, v]) => isNum(v) && v >= 50).pop();
+    if (!strs.length || !hrg) continue;
+    const sat = strs.find(x => /^(m3|m³|kg|zak|sak|btg|batang|buah|bh|m2|m'|ls|unit|liter|lembar|lbr|set)$/i.test(x)) || '';
+    const teks = strs.filter(x => x !== sat).join(' ');
+    out.push({ teks, sat, harga: hrg[1], sh: S.name.trim(), r: row.r });
+  }
+  return out;
+}
+function refSsh(list) {
+  const ref = {};
+  for (const it of list) { const m = kunciMat(it.teks); if (!m) continue; const p = perSatuan(m, it.harga, it.sat, it.teks); if (!p) continue; const k = m[0]; if (!ref[k] || p > ref[k].p) ref[k] = { p, it }; }
+  if (!ref.besi && (ref.besi_polos || ref.besi_ulir)) ref.besi = [ref.besi_polos, ref.besi_ulir].filter(Boolean).sort((a, b) => b.p - a.p)[0];
+  return ref;
+}
+function cekMaterialSsh(sheets, an, pakai, sshLuar, add) {
+  const sumber = sshLuar && sshLuar.items && sshLuar.items.length ? { items: sshLuar.items, label: sshLuar.label || 'SSH yang diunggah' } : (() => { const it = hargaSsh(sheets); return it.length ? { items: it, label: `sheet ${it[0].sh} di berkas konsultan (tahun tidak tercantum)` } : null; })();
+  const ref = sumber ? refSsh(sumber.items) : {};
+  // harga material yang dipakai di analisa (utamakan analisa yang dipakai RAB)
+  const pakaiSet = new Set(pakai ? [...pakai.values()] : []), dipakai = new Map();
+  for (const [, b] of an || new Map()) for (const x of b.rows) {
+    const m = kunciMat(x.nama); if (!m) continue; const p = perSatuan(m, x.harga, x.sat, x.nama); if (!p) continue;
+    const key = m[0] + '|' + Math.round(p);
+    const o = dipakai.get(key) || { m, p, nama: x.nama, sat: x.sat, harga: x.harga, n: 0, rab: false, lok: `${b.sh.trim()}!baris ${x.r}` };
+    o.n++; if (pakaiSet.has(b)) o.rab = true; dipakai.set(key, o);
+  }
+  // tanpa analisa: pakai sheet bahan
+  if (!dipakai.size) for (const S of sheets.filter(s => /^bahan/i.test(s.name.trim()))) for (const row of S.grid) { const ent = Object.entries(row.c).map(([k, v]) => [+k, v]).sort((a, b) => a[0] - b[0]); const s = ent.filter(([, v]) => typeof v === 'string').map(([, v]) => txt(v)); const h = ent.filter(([, v]) => isNum(v) && v >= 50); if (!s.length || !h.length) continue; const nama = s.join(' '), m = kunciMat(nama); if (!m) continue; const sat = s.find(x => satNorm(x) && /^(m3|kg|zak|sak|btg|batang|buah)$/i.test(satNorm(x))) || ''; const p = perSatuan(m, h[h.length - 1][1], sat, nama); if (!p) continue; const key = m[0] + '|' + Math.round(p); if (!dipakai.has(key)) dipakai.set(key, { m, p, nama, sat, harga: h[h.length - 1][1], n: 1, rab: true, lok: `${S.name.trim()}!baris ${row.r}` }); }
+  const rows = [];
+  for (const o of dipakai.values()) {
+    const k = o.m[0], R = ref[k] || (k.startsWith('besi_') ? ref.besi : null);
+    rows.push({ kat: o.m[1], kunci: k, satuan: o.m[2], nama: o.nama, rab: o.p, ssh: R ? R.p : null, sshTeks: R ? `${R.it.teks} (${R.it.sat || '-'} ${'Rp' + Math.round(R.it.harga).toLocaleString('id-ID')})` : '', selisih: R ? o.p - R.p : null, dipakaiRab: o.rab, lok: o.lok });
+  }
+  rows.sort((a, b) => MAT.findIndex(m => m[0] === a.kunci) - MAT.findIndex(m => m[0] === b.kunci) || b.rab - a.rab);
+  const dipakaiRows = rows.filter(x => x.dipakaiRab).length ? rows.filter(x => x.dipakaiRab) : rows;
+  const lebih = dipakaiRows.filter(x => x.ssh != null && x.selisih > Math.max(1, x.ssh * 0.001));
+  const rp = v => 'Rp' + Math.round(v).toLocaleString('id-ID');
+  if (!sumber) add('penting', 'SSH', 'Harga material quarry, besi tulangan, dan semen belum bisa dibandingkan dengan SSH: berkas tidak memuat sheet SSH dan SSH terbaru belum diunggah.', '', 'Unggah SSH terbaru di menu Periksa RAB.');
+  else if (lebih.length) add('kritis', 'SSH', `${lebih.length} harga material di atas SSH (${sumber.label}): ${lebih.slice(0, 5).map(x => `${x.kat} ${rp(x.rab)}/${x.satuan} > SSH ${rp(x.ssh)}/${x.satuan}`).join('; ')}.`, lebih[0].lok, 'Turunkan harga material sampai tidak melebihi SSH, atau lampirkan dasar harga (survei/ongkos angkut) yang sah.');
+  const tanpaRef = dipakaiRows.filter(x => x.ssh == null).map(x => x.kat);
+  if (sumber && tanpaRef.length) add('info', 'SSH', `Material tanpa pembanding di SSH: ${[...new Set(tanpaRef)].join(', ')}.`, '');
+  return { sumber: sumber ? sumber.label : '', rows: dipakaiRows };
+}
+function parseSshFile(sheets) { const it = []; for (const S of sheets) { const t = hargaSsh([Object.assign({}, S, { name: 'SSH' })]); it.push(...t.filter(x => kunciMat(x.teks))); } return it; }
+function parseCsv(text) {
+  const sep = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  const grid = text.split(/\r?\n/).map((line, i) => { const c = {}; let cur = '', q = false, k = 0; for (const ch of line + sep) { if (ch === '"') { q = !q; continue; } if (ch === sep && !q) { const v = cur.trim(); if (v !== '') { const n = v.replace(/\./g, '').replace(',', '.'); c[k] = /^-?\d+([.,]\d+)?$/.test(v.replace(/\./g, '')) && !isNaN(+n) ? +n : v; } cur = ''; k++; continue; } cur += ch; } return { r: i + 1, c, f: {} }; }).filter(g => Object.keys(g.c).length);
+  return [{ name: 'SSH', rows: [], grid }];
+}
+
 /*ENDRAB*/
 
-return { analyzeRab, catatanRabDocx, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
+return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
 })();
 if (typeof module !== 'undefined') module.exports = ENGINE;
 
@@ -2358,7 +2448,7 @@ function rabCek() {
     else if (spekNama) kira = spekNama;
     else if (opsi.length) { const rek = opsi.filter(o => /rekap/i.test(o.s.name)).map(o => o.n); const rab = opsi.filter(o => /rab/i.test(o.s.name)); kira = (rab.find(o => rek.some(n => ENGINE.dice(n, o.n) > 0.9)) || rab[0] || opsi[0]).n; }
   }
-  rcRes = ENGINE.analyzeRab(rcSheets, { nama: P?.nama || kira, sheet: dipilih ? dipilih.s.name : '', paket: P ? Object.assign({}, P, { uraianFM: P.uraianFM }) : {}, uraianSpek: (res && res.meta && res.meta.uraian) || [], tahun: new Date().getFullYear() });
+  rcRes = ENGINE.analyzeRab(rcSheets, { ssh: sshData, nama: P?.nama || kira, sheet: dipilih ? dipilih.s.name : '', paket: P ? Object.assign({}, P, { uraianFM: P.uraianFM }) : {}, uraianSpek: (res && res.meta && res.meta.uraian) || [], tahun: new Date().getFullYear() });
   const pl = (rcRes.meta && rcRes.meta.pilihan) || [];
   $('rcsheet').innerHTML = pl.map(x => `<option value="${esc(x.sheet)}"${x.sheet === rcRes.meta.sheetAsli ? ' selected' : ''}>${esc(x.sheet.trim())}${x.nama ? ' — ' + esc(x.nama.slice(0, 60)) : ''}</option>`).join('') || '<option>—</option>';
   rcRes.paket = P; rcRender();
@@ -2373,8 +2463,25 @@ function rcRender() {
   const order = { kritis: 0, penting: 1, info: 2 }, show = F.filter(f => !rcSev || f.tingkat === rcSev).sort((a, b) => order[a.tingkat] - order[b.tingkat]);
   $('rcttl').textContent = `Temuan RAB (${show.length})`;
   $('rclist').innerHTML = show.length ? show.map(f => `<article class="f ${f.tingkat}"><div class="h"><span class="tag sev">${f.tingkat[0].toUpperCase() + f.tingkat.slice(1)}</span><span class="tag">${esc(f.kat)}</span>${f.lok ? `<span class="lok">${esc(f.lok)}</span>` : ''}</div><p>${esc(f.msg)}</p>${f.saran ? `<p class="sr">${esc(f.saran)}</p>` : ''}</article>`).join('') : `<div class="empty">${F.length ? 'Tidak ada temuan pada filter ini.' : 'Tidak ada temuan. RAB sesuai pemeriksaan otomatis.'}</div>`;
+  const MT = M.material || { rows: [] };
+  $('rcmat').innerHTML = `<h2 style="margin-top:22px">Harga semen, besi tulangan &amp; material quarry vs SSH</h2><p style="color:var(--mut);margin:4px 0 0;font-size:14px">Pembanding: ${esc(MT.sumber || 'belum ada SSH')}. Harga dinormalkan per kg (semen, besi) dan per m³ (quarry).</p>` + (MT.rows.length ? `<div style="overflow-x:auto"><table class="mtab"><thead><tr><th>Material</th><th>Di RAB / analisa</th><th style="text-align:right">Harga RAB</th><th style="text-align:right">Harga SSH</th><th style="text-align:right">Selisih</th><th>Status</th></tr></thead><tbody>${MT.rows.map(x => { const up = x.ssh != null && x.selisih > Math.max(1, x.ssh * 0.001); return `<tr><td>${esc(x.kat)}</td><td>${esc(x.nama)}<br><small>${esc(x.lok)}</small></td><td class="n">${rp(x.rab)}/${x.satuan}</td><td class="n">${x.ssh != null ? rp(x.ssh) + '/' + x.satuan : '—'}${x.sshTeks ? `<br><small>${esc(x.sshTeks)}</small>` : ''}</td><td class="n">${x.ssh != null ? (x.selisih > 0 ? '+' : x.selisih < 0 ? '−' : '') + rp(Math.abs(x.selisih)).replace('—', 'Rp0') + ` (${(x.selisih / x.ssh * 100).toFixed(1).replace('.', ',')}%)` : '—'}</td><td class="${x.ssh == null ? '' : up ? 'up' : 'ok'}">${x.ssh == null ? 'Tidak ada di SSH' : up ? 'Di atas SSH' : 'Di bawah / sama SSH'}</td></tr>`; }).join('')}</tbody></table></div>` : '<div class="empty">Tidak ada harga semen, besi tulangan, atau material quarry yang terbaca di analisa.</div>');
   $('rcdoc').disabled = false; $('rccopy').disabled = false;
 }
+let sshData = null; try { sshData = JSON.parse(localStorage.getItem('spek-ssh') || 'null'); } catch {}
+function sshStatus() { $('sshst').textContent = sshData ? `— ${sshData.label} (${sshData.items.length} item material)` : '— belum diunggah'; $('sshdel').hidden = !sshData; }
+sshStatus();
+$('sshfile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const sh = /\.csv$/i.test(f.name) ? ENGINE.parseCsv(await f.text()) : await ENGINE.parseXlsx(await f.arrayBuffer());
+    const items = ENGINE.parseSshFile(sh);
+    if (!items.length) { toast('Tidak ada harga semen, besi, atau material quarry di file SSH ini'); return; }
+    sshData = { label: 'SSH ' + f.name.replace(/\.(xlsx?|csv)$/i, ''), items };
+    try { localStorage.setItem('spek-ssh', JSON.stringify(sshData)); } catch {}
+    sshStatus(); if (rcSheets) rabCek(); toast(`SSH terbaca: ${items.length} item material`);
+  } catch (err) { toast('SSH tidak terbaca: ' + (err.message || err)); }
+});
+$('sshdel').addEventListener('click', () => { sshData = null; try { localStorage.removeItem('spek-ssh'); } catch {} sshStatus(); if (rcSheets) rabCek(); });
 async function rcLoad(f) {
   if (!f) return; $('rcerr').textContent = '';
   if (!/\.xlsx?$/i.test(f.name)) { $('rcerr').textContent = 'RAB harus file Excel (.xlsx atau .xls).'; return; }
