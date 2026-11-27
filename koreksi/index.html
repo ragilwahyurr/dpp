@@ -826,9 +826,10 @@ function parseXlsBuf(buf) {
     else if (r.t === 0x00BD) { const row = wv.getUint16(r.o, true), c0 = wv.getUint16(r.o + 2, true), n = (r.l - 6) / 6; for (let k = 0; k < n; k++) put(row, c0 + k, rk(wv.getInt32(r.o + 4 + k * 6 + 2, true))); }
     else if (r.t === 0x0006) { const row = wv.getUint16(r.o, true), col = wv.getUint16(r.o + 2, true); if (wv.getUint16(r.o + 12, true) !== 0xFFFF) put(row, col, wv.getFloat64(r.o + 6, true)); else if (wb[r.o + 6] === 0) { const nx = recs[recs.indexOf(r) + 1]; if (nx && nx.t === 0x0207) { const cch = wv.getUint16(nx.o, true), f = wb[nx.o + 2]; put(row, col, f & 1 ? dec16(nx.o + 3, cch) : dec8(nx.o + 3, cch)); } } }
     else if (r.t === 0x0204 || r.t === 0x00D6) { const cch = wv.getUint16(r.o + 6, true), f = wb[r.o + 8]; put(wv.getUint16(r.o, true), wv.getUint16(r.o + 2, true), f & 1 ? dec16(r.o + 9, cch) : dec8(r.o + 9, cch)); }
+    else if (r.t === 0x0208) { if (wv.getUint16(r.o + 12, true) & 0x20) (cur.hid = cur.hid || new Set()).add(wv.getUint16(r.o, true)); }
     else if (r.t === 0x000A) cur = null;
   }
-  return sheets.map(s => { const rs = Object.keys(s.cells).map(Number).sort((a, b) => a - b); return { name: s.name, rows: rs.map(rw => { const c = s.cells[rw]; return Object.keys(c).map(Number).sort((a, b) => a - b).map(k => String(c[k])); }), grid: rs.map(rw => ({ r: rw + 1, c: Object.assign({}, s.cells[rw]), f: {} })) }; });
+  return sheets.map(s => { const rs = Object.keys(s.cells).map(Number).sort((a, b) => a - b); return { name: s.name, rows: rs.map(rw => { const c = s.cells[rw]; return Object.keys(c).map(Number).sort((a, b) => a - b).map(k => String(c[k])); }), grid: rs.map(rw => ({ r: rw + 1, c: Object.assign({}, s.cells[rw]), f: {}, hidden: !!(s.hid && s.hid.has(rw)) })) }; });
 }
 
 /* ---------- Baca RAB (.xlsx): nama & ukuran bahan ---------- */
@@ -1956,12 +1957,13 @@ function analyzeRab(sheets, opt) {
       if (!blok || !C) continue;
       const vj = row.c[C.j], kiri = ent.filter(([k]) => k < C.j);
       const labK = kiri.map(([, v]) => txt(v)).join(' ');
+      { const sm = labK.match(/^\s*(?:[A-D]\.?|[IVX]+\.?)?\s*(tenaga(\s*kerja)?|upah|bahan|material|peralatan|alat)\b/i); if (sm && !isNum(row.c[C.k]) && !isNum(vj)) { blok.sec = /tenaga|upah/i.test(sm[1]) ? 'tenaga' : /bahan|material/i.test(sm[1]) ? 'bahan' : 'alat'; continue; } }
       if (/overhead|keuntungan|biaya umum/i.test(labK)) { const p = kiri.find(([, v]) => isNum(v) && v > 0 && v < 1); if (p) { blok.oh = p[1]; if (ohMax == null || p[1] > ohMax) { ohMax = p[1]; ohLok = sel(A.name, row.r, p[0]); } } if (isNum(vj)) blok.e = vj; continue; }
       if (/jumlah\s*\(?\s*a\s*\+\s*b/i.test(labK)) { if (isNum(vj)) blok.d = vj; continue; }
       if (/harga satuan pekerjaan/i.test(labK)) { if (isNum(vj)) { blok.f = vj; blok.fr = row.r; } continue; }
       if (/jumlah/i.test(labK)) { if (isNum(vj)) (blok.sub = blok.sub || []).push(vj); continue; }
       const nm = txt(row.c[C.u] ?? row.c[C.u + 1] ?? ''), koef = row.c[C.k], harga = row.c[C.h];
-      if (nm && isNum(koef) && isNum(harga) && isNum(vj)) blok.rows.push({ nama: nm, sat: txt(row.c[C.k - 1] || ''), koef, harga, jml: vj, r: row.r, col: C.j, hcol: C.h });
+      if (nm && isNum(koef) && isNum(harga) && isNum(vj)) blok.rows.push({ nama: nm, sec: blok.sec || '', sat: txt(row.c[C.k - 1] || ''), koef, harga, jml: vj, r: row.r, col: C.j, hcol: C.h });
     }
     flush();
   }
@@ -1987,8 +1989,9 @@ function analyzeRab(sheets, opt) {
       if (kk && !b && /^[A-Z]\.\d/.test(kk)) tak.push(`${kk} (${it.uraian || 'baris ' + it.r})`);
       if (b && it.uraian && b.nama && !mirip(it.uraian, b.nama)) { salahKode.push(`baris ${it.r} "${it.uraian}" memakai ${kk} (${b.nama})`); b = null; }
       if (!b && it.uraian) { let best = null, bs = 0.8; for (const [k2, x] of namaAn) { const s = dice(it.uraian, x.nama); if (s > bs) { bs = s; best = x; kd = k2; } } if (best) { b = best; via = 'uraian'; } }
+      if (!b && it.hs > 0) { const cocok = namaAn.filter(([, x]) => x.f > 0 && Math.abs(x.f - it.hs) <= 1); if (cocok.length) { const best = cocok.map(([k2, x]) => ({ k2, x, s: it.uraian ? dice(it.uraian, x.nama || '') : 0 })).sort((p, q) => q.s - p.s)[0]; if (cocok.length === 1 || best.s >= 0.3) { b = best.x; kd = best.k2; via = 'nilai'; } } }
       if (!b) continue;
-      pakai.set(kd, b);
+      pakai.set(kd, b); it.blok = b;
       if (b.f > 0 && it.hs > b.f * 1.01 + 1) mark.push({ it, b, via, kd });
     }
     const salahAn = []; for (const [kd, b] of pakai) salahAn.push(...cekBlok(kd.startsWith('~') ? `"${b.nama}"` : kd, b));
@@ -2004,7 +2007,17 @@ function analyzeRab(sheets, opt) {
   } else if (items.length) add('penting', 'Analisa', 'Di berkas tidak ada sheet analisa harga satuan, jadi harga satuan RAB tidak bisa diuji.', '', 'Tolong dilampirkan analisa harga satuan (AHSP) yang dipakai ya.');
 
   // ---- 2b. Harga material vs SSH
-  meta.material = cekMaterialSsh(sheets, an, pakaiBlok, O.ssh, add, O.survei || HARGA_WILAYAH);
+  const jenisRow = x => x.sec || (/(pekerja|tukang|mandor|operator|sopir|pengemudi|mekanik|pembantu)/i.test(x.nama) && /oh|hari|jam|org/i.test(x.sat) ? 'tenaga' : /(sewa|^alat|mixer|molen|vibrator|stamper|truck|truk|excavator|pompa|genset|crane|scaffold|concrete pump|alat bantu)/i.test(x.nama) ? 'alat' : 'bahan');
+  const bobot = { bahan: new Map(), tenaga: new Map() };
+  for (const it of items) { if (!it.blok || !it.vol) continue; for (const x of it.blok.rows) { const j = jenisRow(x); if (j === 'alat') continue; const key = x.nama.toLowerCase().replace(/\s+/g, ' ').trim() + '|' + satNorm(x.sat) + '|' + Math.round(x.harga); const M0 = bobot[j]; const o = M0.get(key) || { nama: x.nama, sat: x.sat, harga: x.harga, nilai: 0, n: 0, lok: `${it.blok.sh.trim()}!baris ${x.r}` }; o.nilai += it.vol * x.koef * x.harga; o.n++; M0.set(key, o); } }
+  meta.bobotBahan = [...bobot.bahan.values()].sort((a, b) => b.nilai - a.nilai);
+  meta.bobotUpah = [...bobot.tenaga.values()].sort((a, b) => b.nilai - a.nilai);
+  meta.material = cekMaterialSsh(sheets, an, pakaiBlok, O.ssh, add, O.survei || HARGA_WILAYAH, meta.bobotBahan, meta.jumlah || items.reduce((a, x) => a + (x.jm || 0), 0));
+  meta.upah = cekUpah(sheets, meta.bobotUpah, O.ssh, add, meta.jumlah || items.reduce((a, x) => a + (x.jm || 0), 0));
+  { const batasR = totalRow ? (typeof totalRow === 'object' ? totalRow.r : totalRow) : Infinity, hid = (S.grid || []).filter(g => g.hidden && g.r <= batasR && Object.values(g.c).some(v => String(v).trim())), isiN = hid.filter(g => [H.jm, H.vol, H.hs].some(k => k != null && isNum(g.c[k]) && g.c[k] !== 0));
+    if (hid.length) { const cth = hid.filter(g => teksBaris(g, H)).slice(0, 6).map(g => `baris ${g.r} "${teksBaris(g, H).slice(0, 60)}"`); add('penting', 'Baris di-hide', `Ada ${hid.length} baris yang di-hide di sheet ${sh.trim()}${isiN.length ? `, ${isiN.length} di antaranya berisi volume/harga` : ''}: ${cth.join('; ')}${hid.length > cth.length ? '; …' : ''}.`, sel(sh, hid[0].r, 0), 'Tolong baris RAB jangan di-hide ya. Kalau item itu tidak dipakai, dihapus saja; kalau dipakai, ditampilkan, biar semua isi RAB bisa diperiksa dan tidak ada nilai yang tersembunyi.'); }
+    const lainHid = []; if (pakaiBlok) { const per = {}; for (const b of new Set(pakaiBlok.values())) { const A = sheets.find(s => s.name === b.sh); if (!A) continue; const n = (A.grid || []).filter(g => g.hidden && g.r >= b.r && g.r <= (b.fr || b.r + 40) && Object.values(g.c).some(v => String(v).trim())).length; if (n) per[b.sh.trim()] = (per[b.sh.trim()] || 0) + n; } lainHid.push(...Object.entries(per)); }
+    if (lainHid.length) add('info', 'Baris di-hide', `Di analisa yang dipakai RAB juga ada baris yang di-hide: ${lainHid.map(([n, k]) => `${n} (${k} baris)`).join(', ')}.`, '', 'Sebaiknya baris di analisa, daftar harga, dan rekap juga tidak di-hide, biar mudah ditelusuri.'); }
   meta.hsd = cekHsd(sheets, meta.material, add).hsd.length;
   meta.volume = cekVolume(sheets, S, H, items, meta, add);
   cekRumus(S, H, items, subs, add);
@@ -2094,13 +2107,15 @@ function catatanRabDocx(R, info) {
     identTbl,
     par(`Ringkasan: ${F.length} temuan (${n('kritis')} kritis, ${n('penting')} penting, ${n('info')} info). Acuan AHSP terbaru: Permen PUPR Nomor 8 Tahun 2023 dan SE Dirjen Bina Konstruksi Nomor 47/SE/Dk/2026.`, { sz: 20, before: 200, after: 120 }),
     F.length ? tbl(W2, [head, ...rows]) : par('Tidak ada temuan.', { sz: 20 }),
-    ...(() => { const MT = M.material; if (!MT || !MT.rows.length) return []; const W3 = [500, 3000, 800, 1550, 1550, 1150, 2300, 1350, 1300, 1800]; const rpx = v => 'Rp' + Math.round(v).toLocaleString('id-ID');
+    ...(() => { const MT = M.material; if (!MT || !MT.rows.length) return []; const W3 = [450, 2700, 800, 850, 1450, 1450, 1050, 2200, 1250, 1200, 1700]; const rpx = v => 'Rp' + Math.round(v).toLocaleString('id-ID');
       const ST = { atas_ssh: 'Di atas SSH', atas_wilayah: 'Di atas harga wilayah', bawah_wilayah: 'Jauh di bawah harga wilayah', wajar: 'Wajar', tanpa: 'Belum ada pembanding' };
       const wil = x => { const w = HARGA_WILAYAH[x.kunci] || (x.kunci.startsWith('besi_') ? HARGA_WILAYAH.besi : null); if (!w) return '-'; const a = [w.ppu, ...(w.psr || [])].filter(isNum); if (!a.length) return '-'; const lo = Math.min(...a) * x.fak, hi = Math.max(...a) * x.fak; return rpx(lo) + (hi !== lo ? ' – ' + rpx(hi) : ''); };
       const sat = s => s.replace('m3', 'm³').replace('m2', 'm²'), P = o => Object.assign({ sz: 18, after: 0 }, o);
-      const h = tr(['No', 'Material', 'Satuan', 'Harga dasar di RAB', 'SSH', 'Selisih vs SSH', 'Harga wilayah', 'Survei lokasi', 'HSD', 'Status'].map((t, i) => cell(W3[i], par(t, P({ b: true, jc: 'center' })), { fill: 'D9E2F3' })), true);
-      const rr = MT.rows.map((x, i) => { const up = /^atas/.test(x.status), pct = x.ssh != null ? x.selisih / x.ssh * 100 : null; return tr([cell(W3[0], par(String(i + 1), P({ jc: 'center' }))), cell(W3[1], `${par(x.kat, P({ b: true }))}${par(`${x.nama} · ${x.lok}`, P({ sz: 16, color: '595959' }))}`), cell(W3[2], par(x.tsat, P({ jc: 'center' }))), cell(W3[3], par(rpx(x.rab * x.fak), P({ jc: 'right', b: true }))), cell(W3[4], par(x.ssh != null ? rpx(x.ssh * x.fak) : '-', P({ jc: 'right' }))), cell(W3[5], par(pct == null ? '-' : (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%', P({ jc: 'right', color: pct > 0.1 ? 'C00000' : '' }))), cell(W3[6], par(wil(x), P({ jc: 'right' }))), cell(W3[7], par(x.wLok != null ? rpx(x.wLok * x.fak) : '-', P({ jc: 'right' }))), cell(W3[8], par(x.quarry ? (x.hsd ? rpx(x.hsd) : 'tidak ada') : '-', P({ jc: 'right' }))), cell(W3[9], par(ST[x.status] || '-', P({ b: up, color: up ? 'C00000' : '' })))]); });
-      return [par(`Tabel perbandingan harga bahan di RAB (SSH: ${MT.sumber || 'belum tersedia'}; harga wilayah Tanah Grogot–Balikpapan dari internet)`, { b: true, sz: 22, before: 240, after: 100 }), tbl(W3, [h, ...rr]), par('Sumber harga wilayah: ' + SUMBER_WILAYAH.map(([t, u]) => `${t} (${u})`).join('; ') + '.', { sz: 16, before: 60 })]; })(),
+      const h = tr(['No', 'Material', 'Bobot', 'Satuan', 'Harga dasar di RAB', 'SSH', 'Selisih vs SSH', 'Harga wilayah', 'Survei lokasi', 'HSD', 'Status'].map((t, i) => cell(W3[i], par(t, P({ b: true, jc: 'center' })), { fill: 'D9E2F3' })), true);
+      const rr = MT.rows.slice(0, 15).map((x, i) => { const up = /^atas/.test(x.status), pct = x.ssh != null ? x.selisih / x.ssh * 100 : null; return tr([cell(W3[0], par(String(i + 1), P({ jc: 'center' }))), cell(W3[1], `${par(x.kat, P({ b: true }))}${par(`${x.nama} · ${x.lok}`, P({ sz: 16, color: '595959' }))}`), cell(W3[2], par(x.bobot != null ? (x.bobot * 100).toFixed(1).replace('.', ',') + '%' : '-', P({ jc: 'right' }))), cell(W3[3], par(x.tsat, P({ jc: 'center' }))), cell(W3[4], par(rpx(x.rab * x.fak), P({ jc: 'right', b: true }))), cell(W3[5], par(x.ssh != null ? rpx(x.ssh * x.fak) : '-', P({ jc: 'right' }))), cell(W3[6], par(pct == null ? '-' : (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%', P({ jc: 'right', color: pct > 0.1 ? 'C00000' : '' }))), cell(W3[7], par(wil(x), P({ jc: 'right' }))), cell(W3[8], par(x.wLok != null ? rpx(x.wLok * x.fak) : '-', P({ jc: 'right' }))), cell(W3[9], par(x.quarry ? (x.hsd ? rpx(x.hsd) : 'tidak ada') : '-', P({ jc: 'right' }))), cell(W3[10], par(ST[x.status] || '-', P({ b: up, color: up ? 'C00000' : '' })))]); });
+      const UP = M.upah || { rows: [] }, W4 = [500, 4200, 1200, 2000, 2000, 1700, 2500];
+      const tUp = UP.rows.length ? [par(`Upah tenaga kerja di RAB dibandingkan SSH (${UP.sumber || 'SSH belum tersedia'})`, { b: true, sz: 22, before: 240, after: 100 }), tbl(W4, [tr(['No', 'Tenaga kerja', 'Bobot', 'Upah di RAB (OH)', 'SSH', 'Selisih vs SSH', 'Status'].map((t, i) => cell(W4[i], par(t, P({ b: true, jc: 'center' })), { fill: 'D9E2F3' })), true), ...UP.rows.map((x, i) => { const up = x.status === 'atas_ssh', pct = x.ssh != null ? x.selisih / x.ssh * 100 : null; return tr([cell(W4[0], par(String(i + 1), P({ jc: 'center' }))), cell(W4[1], `${par(x.nama, P({ b: true }))}${par(x.lok, P({ sz: 16, color: '595959' }))}`), cell(W4[2], par(x.bobot != null ? (x.bobot * 100).toFixed(1).replace('.', ',') + '%' : '-', P({ jc: 'right' }))), cell(W4[3], par(rpx(x.rab), P({ jc: 'right', b: true }))), cell(W4[4], par(x.ssh != null ? rpx(x.ssh) : '-', P({ jc: 'right' }))), cell(W4[5], par(pct == null ? '-' : (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%', P({ jc: 'right', color: pct > 0.1 ? 'C00000' : '' }))), cell(W4[6], par(ST[x.status] || '-', P({ b: up, color: up ? 'C00000' : '' })))]); })])] : [];
+      return [par(`Tabel perbandingan harga bahan di RAB, ${Math.min(15, MT.rows.length)} bahan dengan bobot nilai terbesar (SSH: ${MT.sumber || 'belum tersedia'}; harga wilayah Tanah Grogot–Balikpapan dari internet)`, { b: true, sz: 22, before: 240, after: 100 }), tbl(W3, [h, ...rr]), par('Bobot = nilai bahan (volume × koefisien × harga) dibagi total nilai bahan di RAB. Sumber harga wilayah: ' + SUMBER_WILAYAH.map(([t, u]) => `${t} (${u})`).join('; ') + '.', { sz: 16, before: 60 }), ...tUp]; })(),
     par('Mohon RAB diperbaiki sesuai catatan di atas, lalu diserahkan kembali bersama backup volume, analisa harga satuan, dan analisa HSD-nya ya. Kalau ada yang kurang jelas, silakan dikonfirmasi ke tim teknis. Terima kasih.', { sz: 20, before: 240, after: 240 }),
     tbl([7000, 5000], [tr([cell(7000, par('', { after: 0 })), cell(5000, par(`Tana Paser, ${I.tanggal || '....................'}\n${I.jabatan || 'Tim Teknis'}\n\n\n\n${I.penandatangan || '(.........................................)'}\n${I.nip ? 'NIP. ' + I.nip : 'NIP. ...............................'}`, { sz: 20, jc: 'center', after: 0 }))])], { noBorder: true })
   ].join('');
@@ -2122,7 +2137,7 @@ function gabungRumus(F) {
 function saranRab(f) {
   return { Hitungan: 'Tolong dihitung ulang ya: jumlah harga = volume × harga satuan, lalu subtotal dan totalnya dijumlahkan lagi.', Rumus: 'Rumusnya tolong dicek lagi, pastikan merujuk ke sel yang benar.', PPN: 'PPN tolong dihitung 12% × DPP nilai lain (11/12), jadi efektifnya 11% dari jumlah.', Pembulatan: 'Pembulatannya ke bawah ke ribuan terdekat saja ya.', Terbilang: 'Terbilangnya tolong disamakan dengan angka totalnya.', 'Mark-up': 'Harga satuan di RAB tolong disamakan dengan hasil analisanya. Kalau memang beda, lampirkan dasar harganya.', Overhead: 'Overhead & profit maksimal 15% ya, dan nilainya harus sama dengan persentase yang ditulis.', 'Data DPA': 'Tolong disamakan dengan DPA ya.', AHSP: `Analisanya tolong pakai AHSP terbaru: ${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}.`, Analisa: 'Hitungan di analisanya tolong dicek lagi (koefisien × harga, jumlah A+B+C, overhead, harga satuan pekerjaan).', Harga: 'Harga bahan/upah tolong disamakan dengan daftar harga di berkas, jangan beda-beda antar sheet.', 'Harga bahan': 'Harga bahan jangan lewat SSH ya.', 'HSD quarry': 'Harga quarry tolong dihitung lewat analisa HSD.', Volume: 'Volume di RAB harus sama dengan backup, dan backup-nya dirinci sesuai gambar.', 'Isi RAB': 'Tolong dirapikan isi RAB-nya.', Uraian: 'Item pekerjaan di RAB tolong disamakan dengan uraian pekerjaan di spek teknis.', 'Isi berkas': 'Sheet atau baris milik paket lain tolong dihapus dulu.', Penomoran: 'Penomoran bagiannya tolong dirapikan.' }[f.kat] || '';
 }
-const KELOMPOK = [['Volume & backup', /^(Volume)$/], ['Rumus & hitungan', /^(Hitungan|Rumus|PPN|Pembulatan|Terbilang|Penomoran|Rumus & hitungan)$/], ['Harga bahan & harga satuan', /^(Harga bahan|HSD quarry|Harga|Mark-up|Overhead)$/], ['AHSP & analisa', /^(AHSP|Analisa)$/], ['Kesesuaian dengan DPA', /^(Data DPA)$/], ['Lain-lain', /./]];
+const KELOMPOK = [['Volume & backup', /^(Volume)$/], ['Rumus & hitungan', /^(Hitungan|Rumus|PPN|Pembulatan|Terbilang|Penomoran|Rumus & hitungan)$/], ['Harga bahan, upah & harga satuan', /^(Harga bahan|Upah|HSD quarry|Harga|Mark-up|Overhead)$/], ['AHSP & analisa', /^(AHSP|Analisa)$/], ['Kesesuaian dengan DPA', /^(Data DPA)$/], ['Lain-lain', /./]];
 const kelompokRab = f => { const i = KELOMPOK.findIndex(([, re]) => re.test(f.kat)); return i < 0 ? KELOMPOK.length - 1 : i; };
 
 /* ---------- Material quarry, besi tulangan, semen vs SSH ---------- */
@@ -2140,20 +2155,20 @@ const MAT = [
   ['multi9', 'Multipleks / plywood 9 mm', 'lbr', /(multipl|plywood|triplek|tripleks|kayu\s*lapis).*\b9\s*mm/i],
   ['multi12', 'Multipleks / plywood 12 mm', 'lbr', /(multipl|plywood|triplek|tripleks|kayu\s*lapis).*\b12\s*mm/i],
   ['triplek4', 'Triplek 3–4 mm', 'lbr', /(triplek|tripleks|plywood|multipl).*\b[34]\s*mm/i],
-  ['bata_merah', 'Bata merah', 'bh', /bata\s*merah|batu\s*bata(?!.*ringan)|^\s*bata\s*$/i],
+  ['bata_merah', 'Bata merah', 'bh', /bata\s*me[rt]ah|batu\s*bata(?!.*ringan)|^\s*bata\s*$/i],
   ['bata_ringan', 'Bata ringan (hebel)', 'm3', /bata\s*ringan|hebel|\baac\b|celcon/i],
   ['keramik40', 'Keramik 40×40', 'm2', /keramik.*40\s*[x×\/]\s*40/i],
   ['keramik30', 'Keramik 30×30', 'm2', /keramik.*30\s*[x×\/]\s*30/i],
   ['granit60', 'Granit 60×60', 'm2', /granit.*60\s*[x×\/]\s*60/i],
-  ['cat_eks', 'Cat tembok eksterior', 'kg', /cat.*(eksterior|exterior|luar)/i],
-  ['cat_int', 'Cat tembok interior', 'kg', /cat\s*(tembok|dinding|interior|emulsi|air)/i],
+  ['cat_eks', 'Cat tembok eksterior', 'kg', /\bcat\b(?!\s*dasar).*(eksterior|exterior|luar)/i],
+  ['cat_int', 'Cat tembok interior', 'kg', /\bcat\b(?!\s*dasar).*(tembok|dinding|interior|emulsi)|cat\s*air/i],
   ['seng', 'Seng gelombang', 'lbr', /seng\s*gelombang|seng\s*bjls/i],
   ['genteng_metal', 'Genteng metal', 'lbr', /^(?!.*(nok|wuwung|bubungan|rabung)).*(genteng\s*metal|galvalum.*genteng)/i],
   ['bjr_c75', 'Baja ringan kanal C75', 'btg', /(baja\s*ringan|kanal\s*c|profil\s*c).*c?\s*-?\s*75/i],
   ['reng_bjr', 'Reng baja ringan', 'btg', /reng.*(baja\s*ringan|galvalum)|(baja\s*ringan|galvalum).*reng/i],
   ['gypsum9', 'Gypsum board 9 mm', 'lbr', /gyps[ui]m.*(9\s*mm|board)/i],
   ['kaca5', 'Kaca bening 5 mm', 'm2', /kaca.*\b5\s*mm/i],
-  ['batu_pecah', 'Batu pecah / split', 'm3', /batu\s*pecah|split|koral|batu\s*kerikil|kerikil|agregat\s*(pecah\s*)?kasar/i, 1],
+  ['batu_pecah', 'Batu pecah / split', 'm3', /batu\s*pecah|split|koral|batu\s*kerikil|k[e]?rikil|agregat\s*(pecah\s*)?kasar/i, 1],
   ['batu_gunung', 'Batu gunung / kali / belah', 'm3', /batu\s*(gunung|kali|belah)/i, 1],
   ['pasir_beton', 'Pasir beton', 'm3', /pasir\s*(untuk\s*)?(beton|cor)/i, 1],
   ['pasir_pasang', 'Pasir pasang', 'm3', /pasir\s*(pasang|pasangan)/i, 1],
@@ -2246,15 +2261,16 @@ function bacaBahan(sheets) {
     for (const T of tabs) for (const row of g) {
       const nama = txt(row.c[T.nama]); const v = row.c[T.h]; if (!nama || !isNum(v) || v <= 0 || !/[a-z]/i.test(nama)) continue;
       const uk = T.uk != null ? txt(row.c[T.uk]) : '';
-      out.push({ nama, teks: (nama + ' ' + uk).trim(), sat: T.sat != null ? txt(row.c[T.sat]) : '', harga: v, sh: S.name.trim(), r: row.r, c: T.h });
+      out.push({ nama, teks: (nama + ' ' + uk).trim(), sat: T.sat != null ? txt(row.c[T.sat]) : '', harga: v, sh: S.name.trim(), r: row.r, c: T.h, nums: Object.entries(row.c).filter(([k, x]) => +k > T.nama && +k < T.end && isNum(x)).map(([, x]) => x) });
     }
   }
   return out;
 }
-function cekMaterialSsh(sheets, an, pakai, sshLuar, add, survei) {
+function cekMaterialSsh(sheets, an, pakai, sshLuar, add, survei, bobotList, totalRab) {
   const sumber = sshLuar && sshLuar.items && sshLuar.items.length ? { items: sshLuar.items, label: sshLuar.label || 'SSH yang diunggah' } : (() => { const it = hargaSsh(sheets); return it.length ? { items: it, label: `sheet ${it[0].sh} di berkas konsultan (tahun tidak tercantum)` } : null; })();
   const ref = sumber ? refSsh(sumber.items) : {};
   const SV = survei || {};
+  const BAS = bacaBahan(sheets);
   const pakaiSet = new Set(pakai ? [...pakai.values()] : []), dipakai = new Map();
   for (const [, b] of an || new Map()) for (const x of b.rows) {
     const m = kunciMat(x.nama); if (!m) continue; const p = perSatuan(m, x.harga, x.sat, x.nama); if (!p) continue;
@@ -2263,22 +2279,30 @@ function cekMaterialSsh(sheets, an, pakai, sshLuar, add, survei) {
     o.n++; if (pakaiSet.has(b)) o.rab = true; dipakai.set(key, o);
   }
   if (!dipakai.size) for (const S of sheets.filter(s => /^bahan/i.test(s.name.trim()))) for (const row of S.grid) { const ent = Object.entries(row.c).map(([k, v]) => [+k, v]).sort((a, b) => a[0] - b[0]); const s = ent.filter(([, v]) => typeof v === 'string').map(([, v]) => txt(v)); const h = ent.filter(([, v]) => isNum(v) && v >= 50); if (!s.length || !h.length) continue; const nama = s.join(' '), m = kunciMat(nama); if (!m) continue; const sat = s.find(x => /^(m3|m2|kg|zak|btg|bh|lbr)$/.test(satNorm(x))) || ''; const p = perSatuan(m, h[h.length - 1][1], sat, nama); if (!p) continue; const key = m[0] + '|' + Math.round(p); if (!dipakai.has(key)) dipakai.set(key, { m, p, nama, sat, harga: h[h.length - 1][1], n: 1, rab: true, lok: `${S.name.trim()}!baris ${row.r}` }); }
-  const BAS = bacaBahan(sheets);
+  const sumberIt = sumber ? sumber.items : [];
+  const totB = (bobotList || []).reduce((a, x) => a + x.nilai, 0);
+  if (bobotList && bobotList.length) { dipakai.clear(); for (const b of bobotList) { if (!(b.nilai > 0)) continue; const m = kunciMat(b.nama); let p = m ? perSatuan(m, b.harga, b.sat, b.nama) : null;
+      if (m && !p) { const bs = BAS.find(x => { const mx = kunciMat(x.teks); return mx && mx[0] === m[0] && x.nums.some(v => Math.abs(v - b.harga) <= Math.max(0.5, b.harga * 0.002)); }); if (bs) p = perSatuan(m, bs.harga, bs.sat, bs.teks); } const mm = p ? m : [null, b.nama, (satNorm(b.sat) || b.sat || '-'), null]; if (!p) p = b.harga; dipakai.set(b.nama + '|' + b.harga, { m: mm, p, nama: b.nama, sat: b.sat, harga: b.harga, n: b.n, rab: true, lok: b.lok, nilai: b.nilai, bobot: totB ? b.nilai / totB : null, pctRab: totalRab ? b.nilai / totalRab : null }); } }
   const rows = [];
   for (const o of dipakai.values()) {
-    const bas = BAS.find(b => { const m = kunciMat(b.teks); if (!m || m[0] !== o.m[0]) return false; const p = perSatuan(m, b.harga, b.sat, b.teks); return p && Math.abs(p - o.p) <= Math.max(1, o.p * 0.005); });
+    if (!o.m[0]) { const bas = BAS.find(b => dice(b.teks, o.nama) >= 0.6 && Math.abs(b.harga - o.harga) <= Math.max(1, o.harga * 0.005)) || BAS.find(b => Math.abs(b.harga - o.harga) <= 1 && dice(b.nama, o.nama) >= 0.45);
+      const ss = sumberIt.map(it => ({ it, s: dice(it.teks, o.nama) })).filter(x => x.s >= 0.6 && satNorm(x.it.sat) === satNorm(o.sat)).sort((a, b) => b.s - a.s)[0];
+      const R = ss ? { p: ss.it.harga, it: ss.it } : null, up = R && o.p > R.p + Math.max(1, R.p * 0.001);
+      rows.push({ kat: o.nama, kunci: '', quarry: false, satuan: o.m[2], fak: 1, tsat: String(o.sat || '-'), basic: bas ? { nama: bas.teks, harga: bas.harga, sat: bas.sat } : null, nama: bas ? bas.teks : o.nama, rab: o.p, ssh: R ? R.p : null, sshTeks: R ? `${R.it.teks} (${R.it.sat || '-'} ${rpS(R.it.harga)})` : '', selisih: R ? o.p - R.p : null, wMin: null, wMax: null, wLok: null, wKet: '', status: up ? 'atas_ssh' : R ? 'wajar' : 'tanpa', dipakaiRab: true, lok: bas ? `${bas.sh}!${colHuruf(bas.c)}${bas.r}` : o.lok, lokAn: o.lok, nilai: o.nilai, bobot: o.bobot, pctRab: o.pctRab });
+      continue; }
+    const bas = BAS.find(b => { const m = kunciMat(b.teks); if (!m || m[0] !== o.m[0]) return false; const p = perSatuan(m, b.harga, b.sat, b.teks); return p && Math.abs(p - o.p) <= Math.max(1, o.p * 0.005); }) || BAS.find(b => { const m = kunciMat(b.teks); return m && m[0] === o.m[0] && b.nums.some(v => Math.abs(v - o.harga) <= Math.max(0.5, o.harga * 0.002)); });
     let fak = 1, tsat = o.m[2].replace('m3', 'm³').replace('m2', 'm²');
     if (o.m[0] === 'semen') { const w = +((String((bas && bas.teks) || o.nama).match(/(40|50)\s*kg/i) || [])[1] || 50); fak = w; tsat = `sak ${w} kg`; }
     const k = o.m[0], R = ref[k] || (k.startsWith('besi_') ? ref.besi : null), W = SV[k] || (k.startsWith('besi_') ? SV.besi : null);
     const wl = W ? [W.ppu, ...(W.psr || []), W.lok].filter(isNum) : [], wMin = wl.length ? Math.min(...wl) : null, wMax = wl.length ? Math.max(...wl) : null;
     const up = R && o.p > R.p + Math.max(1, R.p * 0.001), atasW = !up && wMax != null && o.p > wMax * 1.1, bawahW = wMin != null && o.p < wMin * 0.6;
     rows.push({ kat: o.m[1], kunci: k, quarry: QUARRY.has(k), satuan: o.m[2], fak, tsat, basic: bas ? { nama: bas.teks, harga: bas.harga, sat: bas.sat, lok: `${bas.sh}!${colHuruf(bas.c)}${bas.r}` } : null, nama: bas ? bas.teks : o.nama, rab: o.p, ssh: R ? R.p : null, sshTeks: R ? `${R.it.teks} (${R.it.sat || '-'} ${rpS(R.it.harga)})` : '', selisih: R ? o.p - R.p : null,
-      wMin, wMax, wLok: W && isNum(W.lok) ? W.lok : null, wKet: W ? W.ket || '' : '', status: up ? 'atas_ssh' : atasW ? 'atas_wilayah' : bawahW ? 'bawah_wilayah' : (R || wMax != null) ? 'wajar' : 'tanpa', dipakaiRab: o.rab, lok: bas ? `${bas.sh}!${colHuruf(bas.c)}${bas.r}` : o.lok, lokAn: o.lok });
+      wMin, wMax, wLok: W && isNum(W.lok) ? W.lok : null, wKet: W ? W.ket || '' : '', status: up ? 'atas_ssh' : atasW ? 'atas_wilayah' : bawahW ? 'bawah_wilayah' : (R || wMax != null) ? 'wajar' : 'tanpa', dipakaiRab: o.rab, lok: bas ? `${bas.sh}!${colHuruf(bas.c)}${bas.r}` : o.lok, lokAn: o.lok, nilai: o.nilai, bobot: o.bobot, pctRab: o.pctRab });
   }
-  rows.sort((a, b) => MAT.findIndex(m => m[0] === a.kunci) - MAT.findIndex(m => m[0] === b.kunci) || b.rab - a.rab);
+  if (bobotList && bobotList.length) rows.sort((a, b) => (b.nilai || 0) - (a.nilai || 0)); else rows.sort((a, b) => MAT.findIndex(m => m[0] === a.kunci) - MAT.findIndex(m => m[0] === b.kunci) || b.rab - a.rab);
   const dr = rows.filter(x => x.dipakaiRab).length ? rows.filter(x => x.dipakaiRab) : rows;
-  const satu = x => `${x.kat} ${rpS(x.rab * x.fak)}/${x.tsat}`;
-  const lebih = dr.filter(x => x.status === 'atas_ssh'), lebihW = dr.filter(x => x.status === 'atas_wilayah'), murah = dr.filter(x => x.status === 'bawah_wilayah');
+  const satu = x => `${x.kat} ${rpS(x.rab * x.fak)}/${x.tsat}`, uniq = a => a.filter((x, i) => a.findIndex(y => y.kat === x.kat && Math.round(y.rab) === Math.round(x.rab)) === i);
+  const lebih = uniq(dr.filter(x => x.status === 'atas_ssh')), lebihW = uniq(dr.filter(x => x.status === 'atas_wilayah')), murah = uniq(dr.filter(x => x.status === 'bawah_wilayah'));
   if (!sumber) add('penting', 'Harga bahan', 'Harga bahan di RAB belum bisa dicek ke SSH, karena di berkas tidak ada sheet SSH dan SSH terbaru belum diunggah. Sementara dibandingkan dulu dengan harga wilayah Tanah Grogot–Balikpapan dari internet.', '', 'Unggah SSH terbaru di kotak Harga pembanding biar bisa dicek.');
   if (lebih.length) add('kritis', 'Harga bahan', `Ada ${lebih.length} harga bahan yang lewat SSH (${sumber.label}): ${lebih.slice(0, 6).map(x => `${satu(x)}, SSH ${rpS(x.ssh * x.fak)}`).join('; ')}.`, lebih[0].lok, 'Harga bahan tolong diturunkan sampai tidak lewat SSH ya. Kalau di lapangan memang lebih mahal, lampirkan hasil survei toko (minimal 3 toko) sebagai dasarnya.');
   if (lebihW.length) add('penting', 'Harga bahan', `${lebihW.length} harga bahan lebih dari 10% di atas harga wilayah Tanah Grogot–Balikpapan: ${lebihW.slice(0, 6).map(x => `${satu(x)} (wilayah ${rpS(x.wMin * x.fak)}–${rpS(x.wMax * x.fak)})`).join('; ')}.`, lebihW[0].lok, 'Tolong dicek lagi harga bahannya, kok lebih mahal dari harga pasaran sekitar. Lampirkan survei harganya kalau memang begitu di lokasi.');
@@ -2524,9 +2548,29 @@ async function pdfText(buf) {
   return { grid, nTeks: items.length };
 }
 
+/* ---------- Upah tenaga kerja vs SSH ---------- */
+const UPAH = [['u_kepala', 'Kepala tukang', /kepala\s*tukang/i], ['u_mandor', 'Mandor', /mandor/i], ['u_operator', 'Operator', /operator/i], ['u_mekanik', 'Mekanik', /mekanik(?!.*pembantu)/i], ['u_sopir', 'Sopir / pengemudi', /sopir|supir|pengemudi/i], ['u_pekerja', 'Pekerja', /^(tenaga\s*)?pekerja\b/i], ['u_tukang', 'Tukang', /^(tenaga\s*)?tukang/i]];
+function kunciUpah(t) { const s = String(t || '').trim(); if (/pembantu|peralatan|alat|^sewa/i.test(s)) return null; for (const u of UPAH) if (u[2].test(s)) return u; return null; }
+function cekUpah(sheets, list, sshLuar, add, totalRab) {
+  if (!list || !list.length) return { rows: [], sumber: '' };
+  const sumber = sshLuar && sshLuar.items && sshLuar.items.length ? { items: sshLuar.items, label: sshLuar.label || 'SSH yang diunggah' } : (() => { const it = hargaSsh(sheets); return it.length ? { items: it, label: `sheet ${it[0].sh} di berkas konsultan (tahun tidak tercantum)` } : null; })();
+  const ref = {}; for (const it of (sumber ? sumber.items : [])) { const u = kunciUpah(it.teks); if (!u || (it.sat && !/hari|oh|o\.h|org/i.test(it.sat + ' ' + it.teks))) continue; if (!ref[u[0]] || it.harga > ref[u[0]].harga) ref[u[0]] = it; }
+  const upSh = sheets.find(s => /^upah/i.test(s.name.trim()));
+  const tot = list.reduce((a, x) => a + x.nilai, 0);
+  const rows = list.filter(x => x.nilai > 0 && x.harga > 0).map(x => { const u = kunciUpah(x.nama), R = u ? ref[u[0]] : null; const per = /jam/i.test(x.sat) && !/hari|oh/i.test(x.sat) ? 7 : 1; const h = x.harga * per;
+    let lok = x.lok; if (upSh) { const g = (upSh.grid || []).find(q => Object.values(q.c).some(v => isNum(v) && Math.abs(v - x.harga) < 1) && Object.values(q.c).some(v => typeof v === 'string' && dice(v, x.nama) >= 0.7)); if (g) { const k = Object.entries(g.c).find(([, v]) => isNum(v) && Math.abs(v - x.harga) < 1)[0]; lok = `${upSh.name.trim()}!${colHuruf(+k)}${g.r}`; } }
+    const up = R && h > R.harga + 1; return { nama: x.nama, sat: per === 7 ? 'OH (dari per jam ×7)' : (x.sat || 'OH'), rab: h, ssh: R ? R.harga : null, sshTeks: R ? `${R.teks} (${R.sat} ${rpS(R.harga)})` : '', selisih: R ? h - R.harga : null, status: up ? 'atas_ssh' : R ? 'wajar' : 'tanpa', nilai: x.nilai, bobot: tot ? x.nilai / tot : null, pctRab: totalRab ? x.nilai / totalRab : null, lok }; });
+  const lebih = rows.filter(x => x.status === 'atas_ssh');
+  if (!Object.keys(ref).length) add('penting', 'Upah', `Upah tenaga kerja di RAB belum bisa dicek ke SSH, karena ${sumber ? 'SSH yang ada tidak memuat upah tenaga kerja' : 'SSH belum tersedia'}.`, rows[0].lok, 'Unggah SSH yang memuat upah tenaga kerja, atau isi upah SSH di tabel Harga pembanding.');
+  else if (lebih.length) add('kritis', 'Upah', `${lebih.length} upah tenaga kerja di RAB lewat SSH (${sumber.label}): ${lebih.slice(0, 6).map(x => `${x.nama} ${rpS(x.rab)}/OH, SSH ${rpS(x.ssh)}`).join('; ')}.`, lebih[0].lok, 'Upah tenaga kerja di daftar upah tolong disesuaikan, maksimal sama dengan SSH ya.');
+  const tanpa = rows.filter(x => x.status === 'tanpa' && x.bobot > 0.02).map(x => x.nama);
+  if (Object.keys(ref).length && tanpa.length) add('info', 'Upah', `Upah tanpa pembanding di SSH: ${[...new Set(tanpa)].join(', ')}.`, '');
+  return { rows, sumber: sumber ? sumber.label : '' };
+}
+
 /*ENDRAB*/
 
-return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, pdfText, kunciMat, HARGA_WILAYAH, SUMBER_WILAYAH, MAT, KELOMPOK, kelompokRab, saranRab, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
+return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, pdfText, kunciMat, HARGA_WILAYAH, SUMBER_WILAYAH, MAT, UPAH, kunciUpah, KELOMPOK, kelompokRab, saranRab, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
 })();
 if (typeof module !== 'undefined') module.exports = ENGINE;
 
@@ -2821,13 +2865,15 @@ function rcRender() {
   const ST = { atas_ssh: ['up', 'Di atas SSH'], atas_wilayah: ['up', 'Di atas harga wilayah'], bawah_wilayah: ['', 'Jauh di bawah harga wilayah'], wajar: ['ok', 'Wajar'], tanpa: ['', 'Belum ada pembanding'] };
   const HW = ENGINE.HARGA_WILAYAH, wil = x => { const w = HW[x.kunci] || (x.kunci.startsWith('besi_') ? HW.besi : null); if (!w) return null; const a = [w.ppu, ...(w.psr || [])].filter(v => typeof v === 'number'); return a.length ? [Math.min(...a) * x.fak, Math.max(...a) * x.fak] : null; };
   const rng = r => r ? rp(r[0]) + (r[1] !== r[0] ? ' – ' + rp(r[1]) : '') : '—';
-  $('rcmat').innerHTML = `<h2 style="margin-top:22px">Harga bahan di RAB vs harga pembanding</h2><p style="color:var(--mut);margin:4px 0 8px;font-size:14px">SSH: ${esc(MT.sumber || 'belum ada')} · Harga wilayah: SSH Kab. PPU TA 2025 & harga pasar Balikpapan · Survei lokasi: ${Object.keys(survei).length ? 'isian Anda' : 'belum diisi'}. Harga RAB diambil dari daftar harga dasar bahan (basic price) di berkas; semen ditampilkan per sak.</p>` + (MT.rows.length ? `<div class="ptab-wrap"><table class="ptab"><colgroup><col style="width:4%"><col style="width:19%"><col style="width:6%"><col style="width:10%"><col style="width:10%"><col style="width:8%"><col style="width:16%"><col style="width:9%"><col style="width:8%"><col style="width:10%"></colgroup><thead><tr><th>No</th><th>Material</th><th>Satuan</th><th class="n">Harga dasar di RAB</th><th class="n">SSH</th><th class="n">Selisih vs SSH</th><th class="n">Harga wilayah</th><th class="n">Survei lokasi</th><th class="n">HSD</th><th>Status</th></tr></thead><tbody>${MT.rows.map((x, i) => { const st = ST[x.status] || ST.tanpa; const pct = x.ssh != null ? (x.selisih / x.ssh * 100) : null; return `<tr><td class="c">${i + 1}</td><td><b>${esc(x.kat)}</b><br><small title="${esc(x.nama)}">${esc(x.nama)} · ${esc(x.lok)}${x.basic ? '' : ' (harga analisa, basic price tidak ketemu)'}</small></td><td class="c">${esc(x.tsat)}</td><td class="n"><b>${rp(x.rab * x.fak)}</b></td><td class="n"${x.sshTeks ? ` title="${esc(x.sshTeks)}"` : ''}>${x.ssh != null ? rp(x.ssh * x.fak) : '—'}</td><td class="n ${pct == null ? '' : pct > 0.1 ? 'up' : 'ok'}">${pct == null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%'}</td><td class="n w"${x.wKet ? ` title="${esc(x.wKet)}"` : ''}>${rng(wil(x))}</td><td class="n">${x.wLok != null ? rp(x.wLok * x.fak) : '—'}</td><td class="n">${x.quarry ? (x.hsd ? rp(x.hsd) : '<span class="up">tidak ada</span>') : '—'}</td><td><span class="badge ${st[0] || 'nt'}">${st[1]}</span></td></tr>`; }).join('')}</tbody></table></div><p style="font-size:13px;color:var(--mut);margin-top:6px">Arahkan kursor ke angka SSH / harga wilayah untuk melihat rincian sumbernya. Sumber harga wilayah: ${ENGINE.SUMBER_WILAYAH.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ')}</p>` : '<div class="empty">Tidak ada harga bahan yang terbaca di analisa.</div>');
+  $('rcmat').innerHTML = `<h2 style="margin-top:22px">Harga bahan di RAB vs harga pembanding</h2><p style="color:var(--mut);margin:4px 0 8px;font-size:14px">SSH: ${esc(MT.sumber || 'belum ada')} · Harga wilayah: SSH Kab. PPU TA 2025 & harga pasar Balikpapan · Survei lokasi: ${Object.keys(survei).length ? 'isian Anda' : 'belum diisi'}. Harga RAB diambil dari daftar harga dasar bahan (basic price) di berkas; semen ditampilkan per sak. Ditampilkan bahan dengan bobot nilai terbesar.</p>` + (MT.rows.length ? `<div class="ptab-wrap"><table class="ptab"><colgroup><col style="width:4%"><col style="width:18%"><col style="width:7%"><col style="width:6%"><col style="width:10%"><col style="width:9%"><col style="width:7%"><col style="width:14%"><col style="width:8%"><col style="width:7%"><col style="width:10%"></colgroup><thead><tr><th>No</th><th>Material</th><th class="n">Bobot</th><th>Satuan</th><th class="n">Harga dasar di RAB</th><th class="n">SSH</th><th class="n">Selisih vs SSH</th><th class="n">Harga wilayah</th><th class="n">Survei lokasi</th><th class="n">HSD</th><th>Status</th></tr></thead><tbody>${MT.rows.map((x, i) => { if (i >= 15 && !rcSemua) return ''; const st = ST[x.status] || ST.tanpa; const pct = x.ssh != null ? (x.selisih / x.ssh * 100) : null; return `<tr><td class="c">${i + 1}</td><td><b>${esc(x.kat)}</b><br><small title="${esc(x.nama)}">${esc(x.nama)} · ${esc(x.lok)}${x.basic ? '' : ' (harga analisa, basic price tidak ketemu)'}</small></td><td class="n" title="${x.pctRab != null ? (x.pctRab * 100).toFixed(1).replace('.', ',') + '% dari jumlah RAB' : ''}">${x.bobot != null ? (x.bobot * 100).toFixed(1).replace('.', ',') + '%' : '—'}</td><td class="c">${esc(x.tsat)}</td><td class="n"><b>${rp(x.rab * x.fak)}</b></td><td class="n"${x.sshTeks ? ` title="${esc(x.sshTeks)}"` : ''}>${x.ssh != null ? rp(x.ssh * x.fak) : '—'}</td><td class="n ${pct == null ? '' : pct > 0.1 ? 'up' : 'ok'}">${pct == null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%'}</td><td class="n w"${x.wKet ? ` title="${esc(x.wKet)}"` : ''}>${rng(wil(x))}</td><td class="n">${x.wLok != null ? rp(x.wLok * x.fak) : '—'}</td><td class="n">${x.quarry ? (x.hsd ? rp(x.hsd) : '<span class="up">tidak ada</span>') : '—'}</td><td><span class="badge ${st[0] || 'nt'}">${st[1]}</span></td></tr>`; }).join('')}</tbody></table></div>${MT.rows.length > 15 ? `<p style="margin:8px 0 0"><button class="b" type="button" onclick="rcSemua=!rcSemua;rcRender()">${rcSemua ? 'Tampilkan 15 teratas saja' : `Tampilkan semua ${MT.rows.length} bahan`}</button></p>` : ''}<p style="font-size:13px;color:var(--mut);margin-top:6px">Bobot = nilai bahan (volume × koefisien × harga) dibagi total nilai bahan di RAB; diurutkan dari yang terbesar. Arahkan kursor ke angka SSH / harga wilayah untuk melihat rincian sumbernya. Sumber harga wilayah: ${ENGINE.SUMBER_WILAYAH.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ')}</p>` : '<div class="empty">Tidak ada harga bahan yang terbaca di analisa.</div>');
+  const UP = M.upah || { rows: [] };
+  if (UP.rows.length) $('rcmat').innerHTML += `<h2 style="margin-top:22px">Upah tenaga kerja di RAB vs SSH</h2><p style="color:var(--mut);margin:4px 0 8px;font-size:14px">SSH: ${esc(UP.sumber || 'belum ada')}. Upah diambil dari daftar upah di berkas, per orang-hari (OH).</p><div class="ptab-wrap"><table class="ptab" style="min-width:760px"><colgroup><col style="width:5%"><col style="width:30%"><col style="width:9%"><col style="width:14%"><col style="width:14%"><col style="width:12%"><col style="width:16%"></colgroup><thead><tr><th>No</th><th>Tenaga kerja</th><th class="n">Bobot</th><th class="n">Upah di RAB</th><th class="n">SSH</th><th class="n">Selisih vs SSH</th><th>Status</th></tr></thead><tbody>${UP.rows.map((x, i) => { const st = ST[x.status] || ST.tanpa, pct = x.ssh != null ? x.selisih / x.ssh * 100 : null; return `<tr><td class="c">${i + 1}</td><td><b>${esc(x.nama)}</b><br><small>${esc(x.lok)}</small></td><td class="n">${x.bobot != null ? (x.bobot * 100).toFixed(1).replace('.', ',') + '%' : '—'}</td><td class="n"><b>${rp(x.rab)}</b></td><td class="n"${x.sshTeks ? ` title="${esc(x.sshTeks)}"` : ''}>${x.ssh != null ? rp(x.ssh) : '—'}</td><td class="n ${pct == null ? '' : pct > 0.1 ? 'up' : 'ok'}">${pct == null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(1).replace('.', ',') + '%'}</td><td><span class="badge ${st[0] || 'nt'}">${st[1]}</span></td></tr>`; }).join('')}</tbody></table></div>`;
   $('rcdoc').disabled = false; $('rccopy').disabled = false;
 }
-let sshData = null; try { sshData = JSON.parse(localStorage.getItem('spek-ssh') || 'null'); } catch {}
-const MANF = ENGINE.MAT.filter(m => m[0] !== 'besi').map(m => [m[0], m[1], m[0] === 'semen' ? 'zak 50 kg' : m[2].replace('m3', 'm³').replace('m2', 'm²'), m[0] === 'semen' ? 'Semen PC 50 kg' : m[1], m[0] === 'semen' ? 'Zak' : { kg: 'Kg', m3: 'M3', m2: 'M2', lbr: 'Lbr', bh: 'Bh', btg: 'Btg' }[m[2]]]);
+let rcSemua = false, sshData = null; try { sshData = JSON.parse(localStorage.getItem('spek-ssh') || 'null'); } catch {}
+const MANF = ENGINE.MAT.filter(m => m[0] !== 'besi').map(m => [m[0], m[1], m[0] === 'semen' ? 'zak 50 kg' : m[2].replace('m3', 'm³').replace('m2', 'm²'), m[0] === 'semen' ? 'Semen PC 50 kg' : m[1], m[0] === 'semen' ? 'Zak' : { kg: 'Kg', m3: 'M3', m2: 'M2', lbr: 'Lbr', bh: 'Bh', btg: 'Btg' }[m[2]]]).concat(ENGINE.UPAH.map(u => [u[0], 'Upah ' + u[1].toLowerCase(), 'OH', 'Tenaga ' + u[1].replace(' / pengemudi', ''), 'Orang / Hari']));
 let survei = {}; try { survei = JSON.parse(localStorage.getItem('spek-survei') || '{}') || {}; } catch {}
-const kunciDari = t => { const m = ENGINE.kunciMat(t); return m ? m[0] : ''; };
+const kunciDari = t => { const u = ENGINE.kunciUpah(t); if (u) return u[0]; const m = ENGINE.kunciMat(t); return m ? m[0] : ''; };
 const fmtRp = v => v ? Math.round(v).toLocaleString('id-ID') : '';
 function hargaSurvei() { const out = {}; for (const m of ENGINE.MAT) { const k = m[0], base = ENGINE.HARGA_WILAYAH[k]; const v = survei[k]; if (!base && !v) continue; out[k] = Object.assign({}, base || {}, v ? { lok: v, ket: ((base && base.ket) ? base.ket + '; ' : '') + 'survei lokasi Rp' + fmtRp(v) + '/' + m[2] } : {}); } return out; }
 function sshManFill() {
@@ -2835,9 +2881,9 @@ function sshManFill() {
   $('sshmanf').innerHTML = '<thead><tr><th>Material (satuan)</th><th>SSH (Rp)</th><th>Survei lokasi (Rp)</th><th>Harga wilayah dari internet</th></tr></thead><tbody>' + MANF.map(([k, lbl, sat]) => {
     const it = sshData && sshData.items.find(x => kunciDari(x.teks) === k);
     const sv = it && (k !== 'semen' || /50\s*kg/i.test(it.teks) && /zak|sak/i.test(it.sat)) ? fmtRp(it.harga) : '';
-    const w = W[k], wt = w ? [w.ppu, ...(w.psr || [])] : [], ws = wt.length ? (k === 'semen' ? 'Rp' + fmtRp(Math.min(...wt) * 50) + '–Rp' + fmtRp(Math.max(...wt) * 50) + '/zak 50 kg' : 'Rp' + fmtRp(Math.min(...wt)) + (Math.max(...wt) !== Math.min(...wt) ? '–Rp' + fmtRp(Math.max(...wt)) : '')) : (ENGINE.MAT.find(m => m[0] === k)[4] ? 'pakai analisa HSD' : '—');
+    const w = W[k], wt = w ? [w.ppu, ...(w.psr || [])] : [], ws = wt.length ? (k === 'semen' ? 'Rp' + fmtRp(Math.min(...wt) * 50) + '–Rp' + fmtRp(Math.max(...wt) * 50) + '/zak 50 kg' : 'Rp' + fmtRp(Math.min(...wt)) + (Math.max(...wt) !== Math.min(...wt) ? '–Rp' + fmtRp(Math.max(...wt)) : '')) : ((ENGINE.MAT.find(m => m[0] === k) || [])[4] ? 'pakai analisa HSD' : '—');
     const su = survei[k] ? fmtRp(k === 'semen' ? survei[k] * 50 : survei[k]) : '';
-    return `<tr><td>${esc(lbl)} <small>/${esc(sat)}</small></td><td><input id="sm_${k}" inputmode="numeric" placeholder="—" value="${sv}" style="width:120px"></td><td><input id="sv_${k}" inputmode="numeric" placeholder="—" value="${su}" style="width:120px"></td><td><small>${esc(ws)}</small></td></tr>`; }).join('') + '</tbody>';
+    return `<tr><td>${esc(lbl)} <small>/${esc(sat)}</small></td><td><input id="sm_${k}" inputmode="numeric" placeholder="—" value="${sv}" style="width:120px"></td><td>${k.startsWith('u_') ? '<small>—</small>' : `<input id="sv_${k}" inputmode="numeric" placeholder="—" value="${su}" style="width:120px">`}</td><td><small>${k.startsWith('u_') ? 'isi dari SSH upah' : esc(ws)}</small></td></tr>`; }).join('') + '</tbody>';
   $('srcw').innerHTML = 'Sumber harga wilayah: ' + ENGINE.SUMBER_WILAYAH.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ');
 }
 $('sshmansave').addEventListener('click', () => {
