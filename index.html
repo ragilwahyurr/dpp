@@ -441,7 +441,7 @@ function kartuKak(){
   if(!c){$('#app .col').insertAdjacentHTML('afterbegin','<section class="card" id="kartuKak"></section>');c=$('#kartuKak')}
   c.hidden=false;
   if(!KF){
-    c.innerHTML=`<h2>Buat DPP dari KAK</h2><p class="hint" style="margin:0 0 12px">Unggah file KAK (PDF / Word). Data pekerjaan, lokasi, pagu, masa, SBU dan personil dibaca otomatis, lalu bisa dikoreksi sebelum disimpan. Dokumen HPS, BOQ, Uraian Singkat, Rancangan Kontrak dan Nota Dinas dibuat berformat Perencanaan; KAK yang diunggah ikut disalin sebagai PDF.</p>
+    c.innerHTML=`<h2>Buat DPP dari KAK</h2>
     <div class="acts"><label class="pri kakup" style="display:inline-grid;place-items:center;padding:0 18px;border-radius:10px;cursor:pointer">📄 Pilih file KAK<input type="file" id="kakFile" accept=".pdf,.doc,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" hidden></label>${R&&cur?'<button type="button" id="kakEdit">✎ Edit data paket ini</button>':''}<span id="kakSt" class="muted"></span></div>`;
     $('#kakFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('#kakSt').innerHTML='<span class="spin"></span>Mengunggah & membaca KAK…';
       try{const u=await unggahKak(f);const d=bacaKak(u.teks);d.kakId=u.id;d.kakNama=f.name;KF=d;kartuKak();status('KAK terbaca. Periksa & koreksi data di kartu "Buat DPP dari KAK", lalu klik Simpan paket.','wait')}
