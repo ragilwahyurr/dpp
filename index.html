@@ -710,6 +710,28 @@ pakai(MODE);isi();
 if(tokOk())mulaiOnline();
 else banner(true,ls.get('dpp_pernah')?'Sesi login Google sudah habis. Klik Masuk untuk menyegarkan data.':'Masuk dengan akun Google pemilik spreadsheet untuk membuka data.');
 window.addEventListener('load',siapGis);
+// ===== pembaruan otomatis: bila versi aplikasi di server berubah, halaman dimuat ulang sendiri =====
+(function(){
+  const K='dpp_upd';let jalan=false;
+  const ss={get(){try{return +(sessionStorage.getItem(K)||0)}catch(e){return 0}},set(v){try{sessionStorage.setItem(K,String(v))}catch(e){}}};
+  async function cek(){
+    if(jalan||!navigator.onLine)return;jalan=true;
+    try{
+      const r=await fetch(location.href.split('#')[0],{cache:'reload'});if(!r.ok)return;
+      const t=await r.text();
+      const me=[...document.scripts].map(s=>s.textContent).find(x=>x.includes('function kartuKak('));
+      if(!me||t.includes(me)){ss.set(0);return}
+      if(!/function kartuKak\(/.test(t))return;
+      try{await fetch(location.pathname,{cache:'reload'})}catch(e){}
+      if(typeof KF!=='undefined'&&KF){status('Versi baru aplikasi tersedia. Simpan/batalkan isian KAK, lalu muat ulang halaman.','wait');return}
+      const n=ss.get();if(n>=2)return;ss.set(n+1);
+      location.reload();
+    }catch(e){}finally{jalan=false}
+  }
+  setTimeout(cek,2000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')cek()});
+  setInterval(()=>{if(document.visibilityState==='visible')cek()},5*60*1000);
+})();
 </script>
 </body>
 </html>
