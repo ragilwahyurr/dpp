@@ -433,6 +433,7 @@ async function unggahKak(file){
   return {id:up.id,teks};
 }
 let KF=null; // isian form KAK
+const KAJ_RE=/kajian\s+teknis|fisibility|feasibility|studi\s+kelayakan/i;
 function kartuKak(){
   let c=$('#kartuKak');
   if(MODE!=='custom'){if(c)c.hidden=true;return}
@@ -444,7 +445,8 @@ function kartuKak(){
     $('#kakFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('#kakSt').innerHTML='<span class="spin"></span>Mengunggah & membaca KAK…';
       try{const u=await unggahKak(f);const d=bacaKak(u.teks);d.kakId=u.id;d.kakNama=f.name;KF=d;kartuKak();status('KAK terbaca. Periksa & koreksi data di kartu "Buat DPP dari KAK", lalu klik Simpan paket.','wait')}
       catch(er){$('#kakSt').textContent='Gagal membaca KAK: '+(er.message||er)}};
-    const ed=$('#kakEdit');if(ed)ed.onclick=()=>{const r=R;KF={namaLama:r.nama,nama:r.nama,lokasi:r.lokasi,pagu:String(r.pagu||''),rup:r.rup,mak:r.mak,masa:r.masa,sbu:r.sbu,sbuKode:(SBU_OPSI.find(x=>String(r.sbu||'').includes(x[0]))||['RK001'])[0],personil:(r.personil||[]).map(p=>({jenis:isPend(p)?'pendukung':'ahli',jabatan:String(p.jabatan||'').split(':')[0].trim(),keahlian:p.keahlian||'',pendidikan:p.pendidikan||'',jenjang:/madya/i.test(p.keahlian)?'madya':/utama/i.test(p.keahlian)?'utama':/muda/i.test(p.keahlian)?'muda':''}))};kartuKak()};
+    const ed=$('#kakEdit');if(ed)ed.onclick=async()=>{const r=R;KF={namaLama:r.nama,nama:r.nama,lokasi:r.lokasi,pagu:String(r.pagu||''),rup:r.rup,mak:r.mak,masa:r.masa,sbu:r.sbu,sbuKode:(SBU_OPSI.find(x=>String(r.sbu||'').includes(x[0]))||['RK001'])[0],personil:(r.personil||[]).map(p=>({jenis:isPend(p)?'pendukung':'ahli',jabatan:String(p.jabatan||'').split(':')[0].trim(),keahlian:p.keahlian||'',pendidikan:p.pendidikan||'',jenjang:/madya/i.test(p.keahlian)?'madya':/utama/i.test(p.keahlian)?'utama':/muda/i.test(p.keahlian)?'muda':''}))};kartuKak();
+      if(KAJ_RE.test(r.nama)){const k=KF;try{const h=await api('custom','customHpsInfo',[r.nama]);if(KF===k&&h){k.hpsUraian=h.uraian||'';k.hpsHarga=h.harga?String(h.harga):'';k.hpsLumsum=h.lumsum||0;kartuKak()}}catch(e){}}};
     return;
   }
   const d=KF,opsiM=(D&&D.opsiMasa||[]).slice();if(d.masa&&!opsiM.includes(d.masa))opsiM.unshift(d.masa);
@@ -455,11 +457,13 @@ function kartuKak(){
    <label class="f"><span>Masa pelaksanaan (hari kalender)</span><select data-kf="masa">${opsiM.map(o=>`<option ${o===d.masa?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
    ${inp('mak','Kode rekening / MAK','1.03.08.2.01.0021.5.…',true)}
    <label class="f full"><span>SBU</span><select data-kf="sbuKode">${SBU_OPSI.map(s=>`<option value="${s[0]}" ${s[0]===d.sbuKode?'selected':''}>${s[0]} — ${esc(s[1])}</option>`).join('')}</select></label></div>
+   <div id="kajBox" ${KAJ_RE.test(d.nama||'')?'':'hidden'}><p class="sub">HPS Kajian Teknis / Feasibility Study (format 1 item lumsum)</p><div class="grid2">${inp('hpsUraian','Uraian item HPS','kosong = sama dengan nama pekerjaan',true)}${inp('hpsHarga','Harga sebelum PPN (Rp)',d.hpsLumsum?'kosong = '+Number(d.hpsLumsum).toLocaleString('id-ID')+' (total lumsum)':'kosong = total rincian lumsum')}</div><small class="muted">Harga + PPN 11% dibulatkan ke bawah per Rp10.000 menjadi nilai HPS.</small></div>
    <p class="sub">Personil (maks. 4 tenaga ahli + 2 pendukung)</p><div id="kpL">${(d.personil||[]).map(prow).join('')||'<p class="muted">Personil tidak terbaca — tambahkan manual.</p>'}</div>
    <button type="button" class="tamb" id="kpAdd" style="margin-top:8px">+ Tambah personil</button>
    <div class="acts" style="margin-top:16px"><button type="button" class="pri" id="kfSimpan">${d.namaLama?'Simpan perubahan':'Simpan paket'}</button><button type="button" id="kfBatal">Batal</button>${d.namaLama?'<button type="button" id="kfHapus" style="margin-left:auto;color:var(--bad)">Hapus paket</button>':''}<span id="kakSt" class="muted"></span></div>`;
   const sync=()=>{$$('#kartuKak [data-kf]').forEach(el=>d[el.dataset.kf]=el.value);d.personil=$$('#kpL .kp').map(r=>{const o={};r.querySelectorAll('[data-pk]').forEach(x=>o[x.dataset.pk]=x.value.trim());const j=o.keahlian||'';o.jenjang=/utama/i.test(j)?'utama':/madya/i.test(j)?'madya':/muda/i.test(j)?'muda':'';return o}).filter(p=>p.jabatan)};
   $$('#kartuKak [data-kf],#kpL [data-pk]').forEach(el=>el.onchange=sync);
+  const nmI=$('#kartuKak [data-kf=nama]');if(nmI)nmI.oninput=()=>{$('#kajBox').hidden=!KAJ_RE.test(nmI.value)};
   $$('#kpL [data-del]').forEach(b=>b.onclick=()=>{sync();d.personil.splice(+b.dataset.del,1);kartuKak()});
   $('#kpAdd').onclick=()=>{sync();d.personil.push({jenis:'ahli',jabatan:'',keahlian:'',pendidikan:''});kartuKak();const a=$$('#kpL [data-pk=jabatan]');a[a.length-1].focus()};
   $('#kfBatal').onclick=()=>{KF=null;kartuKak();status('')};
@@ -470,7 +474,7 @@ function kartuKak(){
     if(String(d.nama||'').trim().length<8){$('#kakSt').textContent='Isi nama pekerjaan.';return}
     if(!(+String(d.pagu).replace(/[^\d]/g,''))){$('#kakSt').textContent='Isi pagu.';return}
     if(ah>4||pd>2){$('#kakSt').textContent='Maksimal 4 tenaga ahli dan 2 pendukung.';return}
-    const kirim={nama:d.nama,namaLama:d.namaLama||'',lokasi:d.lokasi,pagu:d.pagu,rup:d.rup,masa:d.masa,mak:d.mak,sbu:sbuTeks(d.sbuKode),personil:d.personil,kakId:d.kakId||''};
+    const kirim={nama:d.nama,namaLama:d.namaLama||'',lokasi:d.lokasi,pagu:d.pagu,rup:d.rup,masa:d.masa,mak:d.mak,sbu:sbuTeks(d.sbuKode),personil:d.personil,kakId:d.kakId||''};if(KAJ_RE.test(d.nama||'')){kirim.hpsUraian=d.hpsUraian||'';kirim.hpsHarga=String(d.hpsHarga||'').replace(/[^\d]/g,'')}
     $('#kfSimpan').disabled=true;$('#kakSt').innerHTML='<span class="spin"></span>Menyimpan ke spreadsheet CUSTOM…';
     try{const r=await api('custom','customTambah',[kirim]);const nm=r.nama;S.custom.DC[norm(nm)]=r;if(d.namaLama&&norm(d.namaLama)!==norm(nm))delete S.custom.DC[norm(d.namaLama)];
       KF=null;await segarMuat('custom');if(MODE!=='custom')return;D=S.custom.D;cur='';R=null;await pilih(nm);kartuKak();status('Paket <b>'+esc(nm)+'</b> tersimpan. Lengkapi tanggal MDP & data kontrak, lalu ekspor PDF.','ok')}
