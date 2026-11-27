@@ -1842,12 +1842,13 @@ const rp2numR = s => { const t = String(s || '').replace(/[^\d,.]/g, ''); if (!t
 function analyzeRab(sheets, opt) {
   const O = opt || {}, F = [];
   const add = (tingkat, kat, msg, lok, saran) => F.push({ tingkat, kat, msg, lok: lok || '', saran: saran || '' });
-  const kandidat = sheets.map(s => ({ s, H: cariHeaderRab(s.grid || []) })).filter(x => x.H && !/^(rekap|ahsp|analisa|anls|bahan|upah|ssh|hspk|backup|rek )/i.test(x.s.name.trim()));
+  const kandidat = sheets.map(s => ({ s, H: cariHeaderRab(s.grid || []) })).filter(x => x.H && !/^(rekap|ahsp|analisa|anls|bahan|upah|ssh|hspk|backup|back up|rek |div\.?\s*\d|list revisi|k3|volume|tabel|cth|disclaimer|quarry|biaya)/i.test(x.s.name.trim()));
   if (!kandidat.length) return { meta: null, findings: [{ tingkat: 'kritis', kat: 'Berkas', msg: 'Sheet RAB tidak ditemukan (butuh kolom Uraian, Harga Satuan, dan Jumlah).', lok: '', saran: '' }] };
   // pilih sheet RAB paket ini
   const nmPaket = O.nama || '';
   kandidat.forEach(k => { k.id = identitasRab(k.s.grid); k.skor = nmPaket && k.id.nama ? dice(k.id.nama.v, nmPaket) : 0; });
-  kandidat.sort((a, b) => b.skor - a.skor || b.s.grid.length - a.s.grid.length);
+  const isRab = k => /^(rab|rencana anggaran|ee\b|engineer)/i.test(k.s.name.trim()) ? 1 : 0;
+  kandidat.sort((a, b) => b.skor - a.skor || isRab(b) - isRab(a) || b.s.grid.length - a.s.grid.length);
   if (O.sheet) { const k = kandidat.findIndex(x => x.s.name === O.sheet); if (k > 0) kandidat.unshift(...kandidat.splice(k, 1)); }
   const { s: S, H, id } = kandidat[0], sh = S.name, g = S.grid;
   const meta = { sheetAsli: sh, sheet: sh.trim(), nama: id.nama?.v || '', lokasi: id.lokasi?.v || '', tahun: id.tahun?.v || '', program: id.program?.v || '', kegiatan: id.kegiatan?.v || '', sub: id.sub?.v || '' };
@@ -1936,12 +1937,13 @@ function analyzeRab(sheets, opt) {
   if (/28\s*\/\s*PRT\s*\/\s*M\s*\/\s*2016|28 tahun 2016/i.test(semuaTeks)) acu.push('Permen PUPR 28/PRT/M/2016');
   if (/(nomor|no\.?)\s*1\s*tahun\s*2022|\b1\/2022\b/i.test(semuaTeks)) acu.push('Permen PUPR 1/2022');
   const se = [...semuaTeks.matchAll(/(\d{1,3})\s*\/\s*SE\s*\/\s*D[kK]\s*\/\s*(20\d\d)/g)].map(m => `${m[1]}/SE/Dk/${m[2]}`).concat([...semuaTeks.matchAll(/SE\s*Dirjen\s*Bina\s*Konstruksi\s*(?:No(?:mor)?\.?\s*)?(\d{1,3})\s*(?:Tahun|Th\.?)\s*(20\d\d)/gi)].map(m => `${m[1]}/SE/Dk/${m[2]}`));
-  const seLama = [...new Set(se)].filter(x => x !== '47/SE/Dk/2026');
+  let seLama = [...new Set(se)].filter(x => x !== '47/SE/Dk/2026');
+  if (se.includes('47/SE/Dk/2026') && seLama.length) { const lamaDi = sheets.filter(s => (s.grid || []).slice(0, 60).some(g => /SE\s*DIRJEN|\/SE\/D[kK]\//i.test(Object.values(g.c).join(' ')) && !/47\s*(TAHUN|\/SE\/D[kK]\/)\s*2026|47\/SE\/Dk\/2026/i.test(Object.values(g.c).join(' ')))).map(s => s.name.trim()); meta.seLamaDi = lamaDi; seLama = []; if (lamaDi.length) add('info', 'AHSP', `Sebagian besar analisa sudah SE 47/SE/Dk/2026, tapi sheet ${lamaDi.join(', ')} masih mencantumkan SE lama.`, '', 'Kalau item RAB memakai analisa dari sheet itu, pastikan koefisiennya sudah dicek ulang.'); }
   if (acu.length) add('kritis', 'AHSP', `Analisa masih mengacu ${acu.join(' dan ')}, yang sudah diganti ${AHSP_TERBARU.permen}.`, '', `Tolong analisanya diganti pakai ${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}.`);
   if (seLama.length) add('penting', 'AHSP', `Analisa memakai SE Dirjen Bina Konstruksi ${seLama.join(', ')}. AHSP terbaru: ${AHSP_TERBARU.label}.`, '', 'Koefisien analisanya tolong dimutakhirkan sesuai SE 47/SE/Dk/2026.');
   if (!acu.length && !se.length) add('info', 'AHSP', 'Acuan AHSP tidak tercantum di berkas RAB/analisa.', '', `Tolong dicantumkan acuan AHSP-nya di analisa (${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}), biar jelas pakai yang terbaru.`);
   let pakaiBlok = null;
-  const anSheets = sheets.filter(s => /analisa|anls|ahsp/i.test(s.name) && !/rekap/i.test(s.name));
+  const anSheets = sheets.filter(s => (/analisa|anls|ahsp/i.test(s.name) || /^div\.?\s*\d+[a-z]?$/i.test(s.name.trim())) && !/rekap/i.test(s.name));
   const upahSh = sheets.find(s => /^upah/i.test(s.name.trim())), bahanSh = sheets.find(s => /^bahan/i.test(s.name.trim()));
   const daftarHarga = sh0 => { const m = new Map(); if (!sh0) return m; let cu = null, ch = null; for (const row of sh0.grid) { const ent = Object.entries(row.c).map(([k, v]) => [+k, v]); if (cu == null) { const u = ent.find(([, v]) => /^(uraian|jenis|nama)/i.test(txt(v))), h = ent.find(([, v]) => /upah|harga/i.test(txt(v)) && !/uraian/i.test(txt(v))); if (u && h) { cu = u[0]; ch = h[0]; } continue; } const nm = txt(row.c[cu]), hv = row.c[ch]; if (nm && isNum(hv) && !m.has(nm.toLowerCase())) m.set(nm.toLowerCase(), hv); } return m; };
   const HU = daftarHarga(upahSh);
@@ -2586,7 +2588,7 @@ function cekUpah(sheets, list, sshLuar, add, totalRab) {
 
 /* ---------- Mode template Dinas (analisa CK) ---------- */
 const TPL_SHEET = ['REKAP', 'RAB', 'Back Up', 'Upah', 'Bahan', 'AHSP', 'quarry', 'biaya oprasional'];
-function isTemplate(sheets) { const n = new Set(sheets.map(s => s.name.trim().toLowerCase())); const R = sheets.find(s => s.name.trim() === 'RAB'); return n.has('back up') && n.has('ahsp') && n.has('quarry') && sheets.some(s => /^analisa/i.test(s.name.trim())) && !!R && (R.grid || []).slice(0, 4).some(g => /engineer estimate|rencana anggaran/i.test(Object.values(g.c).join(' '))); }
+function isTemplate(sheets) { const n = new Set(sheets.map(s => s.name.trim().toLowerCase())); const R = sheets.find(s => s.name.trim() === 'RAB'); return n.has('back up') && n.has('ahsp') && n.has('quarry') && sheets.some(s => /^(analisa|div\.?\s*\d+)/i.test(s.name.trim())) && !!R && (R.grid || []).slice(0, 4).some(g => /engineer estimate|rencana anggaran/i.test(Object.values(g.c).join(' '))); }
 function hsdTemplate(sheets) {
   const B = sheets.find(s => s.name.trim().toLowerCase() === 'bahan'); if (!B || !isTemplate(sheets)) return [];
   const g = B.grid || []; const hd = g.slice(0, 15).find(q => Object.values(q.c).some(v => /harga\s*total/i.test(txt(v)))); if (!hd) return [];
@@ -2610,7 +2612,7 @@ function cekTemplate(sheets, S, H, items, meta, add, tahun) {
     const f = (G.get(it.r) || {}).f || {};
     const fv = f[H.vol], fh = f[H.hs], fj = f[H.jm];
     if (!fv) { if (it.vol) volKetik.push(it); } else { const m = String(fv).match(/'?([^'!]+)'?!\$?([A-Z]+)\$?(\d+)/); if (m && /back\s*up/i.test(m[1])) { const b = bkRow.get(+m[3]); if (b && !(b.f || {})[colIdxH(m[2])] && isNum(b.c[colIdxH(m[2])]) && b.c[colIdxH(m[2])] !== 0) bkKetik.push(`baris ${it.r} → Back Up!${m[2]}${m[3]}`); } else if (!m || !/^volume/i.test(m[1].trim())) volLain.push(`baris ${it.r} (=${fv})`); }
-    if (it.hs == null || it.hs === 0) hsKosong.push(it); else if (!fh && !/^(ls|lump)/i.test(it.sat)) hsKetik.push(it);
+    if (it.vol > 0) { if (it.hs == null || it.hs === 0) hsKosong.push(it); else if (!fh && !/^(ls|lump)/i.test(it.sat)) hsKetik.push(it); }
     if (!fj) jmSalah.push(`baris ${it.r} "${it.uraian.slice(0, 40)}" ${it.jm == null ? 'jumlah harga kosong' : 'jumlah harga diketik'}`);
   }
   const daftar = a => a.slice(0, 8).map(x => typeof x === 'string' ? x : `baris ${x.r} "${x.uraian.slice(0, 45)}"`).join('; ') + (a.length > 8 ? `; … (${a.length} baris)` : '');
