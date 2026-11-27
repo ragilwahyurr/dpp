@@ -386,6 +386,7 @@ function bacaKak(t){
   d.nama=nm.sort((a,b)=>b.length-a.length)[0]||'';
   d.lokasi=rapi(cari(/Lokasi(?:\s+(?:Pekerjaan|Kegiatan))?\s*:?\s*\n\s*(?:Lokasi\s+kegiatan\s+ini\s+berada\s+di\s+)?([^\n]{3,120})/i)||cari(/Lokasi(?:\s+(?:Pekerjaan|Kegiatan))?\s*:\s*([^\n]{3,120})/i)).replace(/^Lokasi\s+kegiatan\s+ini\s+berada\s+di\s+/i,'');
   d.pagu=cari(/Pagu(?:\s+Anggaran)?\s*:?\s*Rp\.?\s*([\d.,]+)/i).replace(/[.,]00$/,'').replace(/[^\d]/g,'');
+  d.hpsKak=cari(/(?:HPS|Harga\s+Perkiraan\s+Sendiri(?:\s*\(HPS\))?)\s*:\s*Rp\.?\s*([\d.,]+)/i).replace(/[.,]00$/,'').replace(/[^\d]/g,'');
   d.rup=cari(/Kode\s*RUP\s*:?\s*(\d{5,})/i);
   d.mak=cari(/\(MAK\)\s*:?\s*([\d.]{10,})/i)||cari(/\bMAK\b[^:\n]*:\s*([\d.]{10,})/i);
   d.mak=d.mak.replace(/\.$/,'');
@@ -446,18 +447,18 @@ function kartuKak(){
       try{const u=await unggahKak(f);const d=bacaKak(u.teks);d.kakId=u.id;d.kakNama=f.name;KF=d;kartuKak();status('KAK terbaca. Periksa & koreksi data di kartu "Buat DPP dari KAK", lalu klik Simpan paket.','wait')}
       catch(er){$('#kakSt').textContent='Gagal membaca KAK: '+(er.message||er)}};
     const ed=$('#kakEdit');if(ed)ed.onclick=async()=>{const r=R;KF={namaLama:r.nama,nama:r.nama,lokasi:r.lokasi,pagu:String(r.pagu||''),rup:r.rup,mak:r.mak,masa:r.masa,sbu:r.sbu,sbuKode:(SBU_OPSI.find(x=>String(r.sbu||'').includes(x[0]))||['RK001'])[0],personil:(r.personil||[]).map(p=>({jenis:isPend(p)?'pendukung':'ahli',jabatan:String(p.jabatan||'').split(':')[0].trim(),keahlian:p.keahlian||'',pendidikan:p.pendidikan||'',jenjang:/madya/i.test(p.keahlian)?'madya':/utama/i.test(p.keahlian)?'utama':/muda/i.test(p.keahlian)?'muda':''}))};kartuKak();
-      if(KAJ_RE.test(r.nama)){const k=KF;try{const h=await api('custom','customHpsInfo',[r.nama]);if(KF===k&&h){k.hpsUraian=h.uraian||'';k.hpsHarga=h.harga?String(h.harga):'';k.hpsLumsum=h.lumsum||0;kartuKak()}}catch(e){}}};
+      {const k=KF;try{const h=await api('custom','customHpsInfo',[r.nama]);if(KF===k&&h){k.hpsUraian=h.uraian||'';k.hpsHarga=h.harga?String(h.harga):'';k.hpsKak=h.hpsKak?String(h.hpsKak):'';k.hpsLumsum=h.lumsum||0;kartuKak()}}catch(e){}}};
     return;
   }
   const d=KF,opsiM=(D&&D.opsiMasa||[]).slice();if(d.masa&&!opsiM.includes(d.masa))opsiM.unshift(d.masa);
   const inp=(k,l,ph,full)=>`<label class="f${full?' full':''}"><span>${l}</span><input data-kf="${k}" value="${esc(d[k]||'')}" placeholder="${ph||''}" autocomplete="off"></label>`;
   const prow=(p,i)=>`<div class="kp" data-i="${i}"><select data-pk="jenis"><option value="ahli"${p.jenis!=='pendukung'?' selected':''}>Tenaga ahli</option><option value="pendukung"${p.jenis==='pendukung'?' selected':''}>Pendukung</option></select><input data-pk="jabatan" value="${esc(p.jabatan)}" placeholder="Jabatan (mis. Team Leader)"><input data-pk="keahlian" value="${esc(p.keahlian)}" placeholder="Sertifikat SKK / SKA"><input data-pk="pendidikan" value="${esc(p.pendidikan)}" placeholder="Pendidikan"><button type="button" class="x" data-del="${i}" aria-label="Hapus personil">✕</button></div>`;
   $('#kartuKak').innerHTML=`<h2>${d.namaLama?'Edit data paket':'Data dari KAK'}${d.kakNama?` <small class="muted" style="font-weight:500;font-size:13px">${esc(d.kakNama)}</small>`:''}</h2><div class="leg"><i></i>Periksa hasil bacaan KAK; kolom kosong berarti tidak ditemukan di KAK.</div>
-   <div class="grid2">${inp('nama','Nama pekerjaan','',true)}${inp('lokasi','Lokasi','Desa / Kelurahan …')}${inp('pagu','Pagu (Rp)','contoh 14000000')}${inp('rup','Kode RUP','')}
+   <div class="grid2">${inp('nama','Nama pekerjaan','',true)}${inp('lokasi','Lokasi','Desa / Kelurahan …')}${inp('pagu','Pagu (Rp)','contoh 14000000')}${inp('rup','Kode RUP','')}${inp('hpsKak','Nilai HPS sesuai KAK (Rp)','contoh 98790000')}
    <label class="f"><span>Masa pelaksanaan (hari kalender)</span><select data-kf="masa">${opsiM.map(o=>`<option ${o===d.masa?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
    ${inp('mak','Kode rekening / MAK','1.03.08.2.01.0021.5.…',true)}
    <label class="f full"><span>SBU</span><select data-kf="sbuKode">${SBU_OPSI.map(s=>`<option value="${s[0]}" ${s[0]===d.sbuKode?'selected':''}>${s[0]} — ${esc(s[1])}</option>`).join('')}</select></label></div>
-   <div id="kajBox" ${KAJ_RE.test(d.nama||'')?'':'hidden'}><p class="sub">HPS Kajian Teknis / Feasibility Study (format 1 item lumsum)</p><div class="grid2">${inp('hpsUraian','Uraian item HPS','kosong = sama dengan nama pekerjaan',true)}${inp('hpsHarga','Harga sebelum PPN (Rp)',d.hpsLumsum?'kosong = '+Number(d.hpsLumsum).toLocaleString('id-ID')+' (total lumsum)':'kosong = total rincian lumsum')}</div><small class="muted">Harga + PPN 11% dibulatkan ke bawah per Rp10.000 menjadi nilai HPS.</small></div>
+   <div id="kajBox" ${KAJ_RE.test(d.nama||'')?'':'hidden'}><p class="sub">HPS Kajian Teknis / Feasibility Study (format 1 item lumsum)</p><div class="grid2">${inp('hpsUraian','Uraian item HPS','kosong = sama dengan nama pekerjaan',true)}${inp('hpsHarga','Harga sebelum PPN (Rp)','kosong = dihitung dari Nilai HPS KAK')}</div><small class="muted">Harga + PPN 11% dibulatkan ke bawah per Rp10.000 menjadi nilai HPS.</small></div>
    <p class="sub">Personil (maks. 4 tenaga ahli + 2 pendukung)</p><div id="kpL">${(d.personil||[]).map(prow).join('')||'<p class="muted">Personil tidak terbaca — tambahkan manual.</p>'}</div>
    <button type="button" class="tamb" id="kpAdd" style="margin-top:8px">+ Tambah personil</button>
    <div class="acts" style="margin-top:16px"><button type="button" class="pri" id="kfSimpan">${d.namaLama?'Simpan perubahan':'Simpan paket'}</button><button type="button" id="kfBatal">Batal</button>${d.namaLama?'<button type="button" id="kfHapus" style="margin-left:auto;color:var(--bad)">Hapus paket</button>':''}<span id="kakSt" class="muted"></span></div>`;
@@ -474,7 +475,7 @@ function kartuKak(){
     if(String(d.nama||'').trim().length<8){$('#kakSt').textContent='Isi nama pekerjaan.';return}
     if(!(+String(d.pagu).replace(/[^\d]/g,''))){$('#kakSt').textContent='Isi pagu.';return}
     if(ah>4||pd>2){$('#kakSt').textContent='Maksimal 4 tenaga ahli dan 2 pendukung.';return}
-    const kirim={nama:d.nama,namaLama:d.namaLama||'',lokasi:d.lokasi,pagu:d.pagu,rup:d.rup,masa:d.masa,mak:d.mak,sbu:sbuTeks(d.sbuKode),personil:d.personil,kakId:d.kakId||''};if(KAJ_RE.test(d.nama||'')){kirim.hpsUraian=d.hpsUraian||'';kirim.hpsHarga=String(d.hpsHarga||'').replace(/[^\d]/g,'')}
+    const kirim={nama:d.nama,namaLama:d.namaLama||'',lokasi:d.lokasi,pagu:d.pagu,rup:d.rup,masa:d.masa,mak:d.mak,sbu:sbuTeks(d.sbuKode),personil:d.personil,kakId:d.kakId||''};kirim.hpsKak=String(d.hpsKak||'').replace(/[^\d]/g,'');if(KAJ_RE.test(d.nama||'')){kirim.hpsUraian=d.hpsUraian||'';kirim.hpsHarga=String(d.hpsHarga||'').replace(/[^\d]/g,'')}
     $('#kfSimpan').disabled=true;$('#kakSt').innerHTML='<span class="spin"></span>Menyimpan ke spreadsheet CUSTOM…';
     try{const r=await api('custom','customTambah',[kirim]);const nm=r.nama;S.custom.DC[norm(nm)]=r;if(d.namaLama&&norm(d.namaLama)!==norm(nm))delete S.custom.DC[norm(d.namaLama)];
       KF=null;await segarMuat('custom');if(MODE!=='custom')return;D=S.custom.D;cur='';R=null;await pilih(nm);kartuKak();status('Paket <b>'+esc(nm)+'</b> tersimpan. Lengkapi tanggal MDP & data kontrak, lalu ekspor PDF.','ok')}
