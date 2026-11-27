@@ -1815,7 +1815,7 @@ function cariHeaderRab(g) {
     const c = g[k].c, ks = Object.keys(c).map(Number), T = j => txt(c[j]).toLowerCase();
     const u = ks.find(j => /uraian|jenis pekerjaan/.test(T(j))), hs = ks.find(j => /harga\s*satuan/.test(T(j))), jm = ks.find(j => /jumlah/.test(T(j)) && j !== hs);
     if (u == null || hs == null || jm == null) continue;
-    return { baris: k, no: ks.find(j => /^no\.?$/.test(T(j))), kode: ks.find(j => /kode|analis|ahsp/.test(T(j))), uraian: u, sat: ks.find(j => /^sat/.test(T(j))), vol: ks.find(j => /vol/.test(T(j))), hs, jm };
+    return { baris: k, no: ks.find(j => /^(no\.?|nomor)$/.test(T(j))), kode: ks.find(j => /kode|analis|ahsp/.test(T(j))), uraian: u, sat: ks.find(j => /^sat/.test(T(j))), vol: ks.find(j => /vol|kuantitas|kwantitas|qty|banyak/.test(T(j))), hs, jm };
   }
   return null;
 }
@@ -1935,7 +1935,7 @@ function analyzeRab(sheets, opt) {
   const acu = [];
   if (/28\s*\/\s*PRT\s*\/\s*M\s*\/\s*2016|28 tahun 2016/i.test(semuaTeks)) acu.push('Permen PUPR 28/PRT/M/2016');
   if (/(nomor|no\.?)\s*1\s*tahun\s*2022|\b1\/2022\b/i.test(semuaTeks)) acu.push('Permen PUPR 1/2022');
-  const se = [...semuaTeks.matchAll(/(\d{1,3})\s*\/\s*SE\s*\/\s*D[kK]\s*\/\s*(20\d\d)/g)].map(m => `${m[1]}/SE/Dk/${m[2]}`);
+  const se = [...semuaTeks.matchAll(/(\d{1,3})\s*\/\s*SE\s*\/\s*D[kK]\s*\/\s*(20\d\d)/g)].map(m => `${m[1]}/SE/Dk/${m[2]}`).concat([...semuaTeks.matchAll(/SE\s*Dirjen\s*Bina\s*Konstruksi\s*(?:No(?:mor)?\.?\s*)?(\d{1,3})\s*(?:Tahun|Th\.?)\s*(20\d\d)/gi)].map(m => `${m[1]}/SE/Dk/${m[2]}`));
   const seLama = [...new Set(se)].filter(x => x !== '47/SE/Dk/2026');
   if (acu.length) add('kritis', 'AHSP', `Analisa masih mengacu ${acu.join(' dan ')}, yang sudah diganti ${AHSP_TERBARU.permen}.`, '', `Tolong analisanya diganti pakai ${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}.`);
   if (seLama.length) add('penting', 'AHSP', `Analisa memakai SE Dirjen Bina Konstruksi ${seLama.join(', ')}. AHSP terbaru: ${AHSP_TERBARU.label}.`, '', 'Koefisien analisanya tolong dimutakhirkan sesuai SE 47/SE/Dk/2026.');
@@ -1982,12 +1982,18 @@ function analyzeRab(sheets, opt) {
   const mirip = (a, b) => { const A = kata(a), B = [...kata(b)]; for (const w of A) if (B.some(v => v === w || (w.length >= 5 && v.includes(w)) || (v.length >= 5 && w.includes(v)))) return true; return dice(a, b) >= 0.5; };
   if (an.size) {
     const mark = [], tak = [], salahKode = [], pakai = new Map(), namaAn = [...an.entries()];
+    const blokRow = new Map(); for (const [k2, x] of namaAn) if (x.fr) blokRow.set(x.sh.trim().toLowerCase() + '|' + x.fr, [k2, x]);
+    const shBy = new Map(sheets.map(x => [x.name.trim().toLowerCase(), x])), rowsBy = new Map();
+    const rowOf = (shn, rr) => { const k = shn.trim().toLowerCase(); if (!rowsBy.has(k)) { const X = shBy.get(k); rowsBy.set(k, new Map((X ? X.grid || [] : []).map(g => [g.r, g]))); } return rowsBy.get(k).get(rr); };
+    const ikut = (shn, f) => { for (let d = 0; d < 4 && f; d++) { const m = String(f).replace(/^[=+]/, '').trim().match(/^(?:'([^']+)'|([A-Za-z0-9_ .]+))?!?\$?([A-Z]{1,3})\$?(\d+)$/); if (!m) return null; const s2 = m[1] || m[2] || shn, rr = +m[4], hit = blokRow.get(s2.trim().toLowerCase() + '|' + rr); if (hit) return hit; const g = rowOf(s2, rr); if (!g) return null; f = (g.f || {})[colIdxH(m[3])]; shn = s2; } return null; };
+    const gridS = new Map((S.grid || []).map(g => [g.r, g]));
     for (const it of items) {
       if (it.hs == null || !it.vol) continue;
       const kk = it.kode ? it.kode.replace(/\s+/g, '').replace(/\.$/, '') : '';
       let b = kk ? an.get(kk) : null, via = 'kode', kd = kk;
+      { const fh = ((gridS.get(it.r) || {}).f || {})[H.hs]; const hit = fh ? ikut(S.name, fh) : null; if (hit) { [kd, b] = hit; via = 'rumus'; } }
       if (kk && !b && /^[A-Z]\.\d/.test(kk)) tak.push(`${kk} (${it.uraian || 'baris ' + it.r})`);
-      if (b && it.uraian && b.nama && !mirip(it.uraian, b.nama)) { salahKode.push(`baris ${it.r} "${it.uraian}" memakai ${kk} (${b.nama})`); b = null; }
+      if (b && via !== 'rumus' && it.uraian && b.nama && !mirip(it.uraian, b.nama)) { salahKode.push(`baris ${it.r} "${it.uraian}" memakai ${kk} (${b.nama})`); b = null; }
       if (!b && it.uraian) { let best = null, bs = 0.8; for (const [k2, x] of namaAn) { const s = dice(it.uraian, x.nama); if (s > bs) { bs = s; best = x; kd = k2; } } if (best) { b = best; via = 'uraian'; } }
       if (!b && it.hs > 0) { const cocok = namaAn.filter(([, x]) => x.f > 0 && Math.abs(x.f - it.hs) <= 1); if (cocok.length) { const best = cocok.map(([k2, x]) => ({ k2, x, s: it.uraian ? dice(it.uraian, x.nama || '') : 0 })).sort((p, q) => q.s - p.s)[0]; if (cocok.length === 1 || best.s >= 0.3) { b = best.x; kd = best.k2; via = 'nilai'; } } }
       if (!b) continue;
@@ -2020,7 +2026,9 @@ function analyzeRab(sheets, opt) {
     if (lainHid.length) add('info', 'Baris di-hide', `Di analisa yang dipakai RAB juga ada baris yang di-hide: ${lainHid.map(([n, k]) => `${n} (${k} baris)`).join(', ')}.`, '', 'Sebaiknya baris di analisa, daftar harga, dan rekap juga tidak di-hide, biar mudah ditelusuri.'); }
   meta.hsd = cekHsd(sheets, meta.material, add).hsd.length;
   meta.volume = cekVolume(sheets, S, H, items, meta, add);
+  meta.template = cekTemplate(sheets, S, H, items, meta, add, O.tahun || new Date().getFullYear());
   cekRumus(S, H, items, subs, add);
+  { const ERR = /^#(VALUE!|REF!|DIV\/0!|N\/A|NAME\?|NUM!|NULL!)$/; const er = (S.grid || []).filter(g => Object.values(g.c).some(v => ERR.test(txt(v)))); if (er.length) add('kritis', 'Rumus', `${er.length} baris RAB berisi error Excel (#VALUE!, #REF!, dll.): ${er.slice(0, 8).map(g => `baris ${g.r}${teksBaris(g, H) ? ` "${teksBaris(g, H).slice(0, 40)}"` : ''}`).join('; ')}${er.length > 8 ? '; …' : ''}.`, sel(sh, er[0].r, H.hs), 'Tolong rumus yang error diperbaiki dulu (biasanya link ke analisa yang hilang/rusak), karena nilainya tidak ikut terhitung dengan benar.'); }
   // ---- 3. Kesesuaian data
   const nn = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const lokId = k => id[k] ? sel(sh, id[k].r, id[k].c) : '';
@@ -2137,7 +2145,7 @@ function gabungRumus(F) {
 function saranRab(f) {
   return { Hitungan: 'Tolong dihitung ulang ya: jumlah harga = volume × harga satuan, lalu subtotal dan totalnya dijumlahkan lagi.', Rumus: 'Rumusnya tolong dicek lagi, pastikan merujuk ke sel yang benar.', PPN: 'PPN tolong dihitung 12% × DPP nilai lain (11/12), jadi efektifnya 11% dari jumlah.', Pembulatan: 'Pembulatannya ke bawah ke ribuan terdekat saja ya.', Terbilang: 'Terbilangnya tolong disamakan dengan angka totalnya.', 'Mark-up': 'Harga satuan di RAB tolong disamakan dengan hasil analisanya. Kalau memang beda, lampirkan dasar harganya.', Overhead: 'Overhead & profit maksimal 15% ya, dan nilainya harus sama dengan persentase yang ditulis.', 'Data DPA': 'Tolong disamakan dengan DPA ya.', AHSP: `Analisanya tolong pakai AHSP terbaru: ${AHSP_TERBARU.permen} dan ${AHSP_TERBARU.label}.`, Analisa: 'Hitungan di analisanya tolong dicek lagi (koefisien × harga, jumlah A+B+C, overhead, harga satuan pekerjaan).', Harga: 'Harga bahan/upah tolong disamakan dengan daftar harga di berkas, jangan beda-beda antar sheet.', 'Harga bahan': 'Harga bahan jangan lewat SSH ya.', 'HSD quarry': 'Harga quarry tolong dihitung lewat analisa HSD.', Volume: 'Volume di RAB harus sama dengan backup, dan backup-nya dirinci sesuai gambar.', 'Isi RAB': 'Tolong dirapikan isi RAB-nya.', Uraian: 'Item pekerjaan di RAB tolong disamakan dengan uraian pekerjaan di spek teknis.', 'Isi berkas': 'Sheet atau baris milik paket lain tolong dihapus dulu.', Penomoran: 'Penomoran bagiannya tolong dirapikan.' }[f.kat] || '';
 }
-const KELOMPOK = [['Volume & backup', /^(Volume)$/], ['Rumus & hitungan', /^(Hitungan|Rumus|PPN|Pembulatan|Terbilang|Penomoran|Rumus & hitungan)$/], ['Harga bahan, upah & harga satuan', /^(Harga bahan|Upah|HSD quarry|Harga|Mark-up|Overhead)$/], ['AHSP & analisa', /^(AHSP|Analisa)$/], ['Kesesuaian dengan DPA', /^(Data DPA)$/], ['Lain-lain', /./]];
+const KELOMPOK = [['Volume & backup', /^(Volume)$/], ['Rumus & hitungan', /^(Hitungan|Rumus|PPN|Pembulatan|Terbilang|Penomoran|Rumus & hitungan)$/], ['Harga bahan, upah & harga satuan', /^(Harga bahan|Upah|HSD quarry|Harga|Mark-up|Overhead)$/], ['AHSP & analisa', /^(AHSP|Analisa)$/], ['Kesesuaian dengan DPA', /^(Data DPA)$/], ['Kesesuaian template', /^(Template)$/], ['Lain-lain', /./]];
 const kelompokRab = f => { const i = KELOMPOK.findIndex(([, re]) => re.test(f.kat)); return i < 0 ? KELOMPOK.length - 1 : i; };
 
 /* ---------- Material quarry, besi tulangan, semen vs SSH ---------- */
@@ -2300,7 +2308,7 @@ function cekMaterialSsh(sheets, an, pakai, sshLuar, add, survei, bobotList, tota
       wMin, wMax, wLok: W && isNum(W.lok) ? W.lok : null, wKet: W ? W.ket || '' : '', status: up ? 'atas_ssh' : atasW ? 'atas_wilayah' : bawahW ? 'bawah_wilayah' : (R || wMax != null) ? 'wajar' : 'tanpa', dipakaiRab: o.rab, lok: bas ? `${bas.sh}!${colHuruf(bas.c)}${bas.r}` : o.lok, lokAn: o.lok, nilai: o.nilai, bobot: o.bobot, pctRab: o.pctRab });
   }
   if (bobotList && bobotList.length) rows.sort((a, b) => (b.nilai || 0) - (a.nilai || 0)); else rows.sort((a, b) => MAT.findIndex(m => m[0] === a.kunci) - MAT.findIndex(m => m[0] === b.kunci) || b.rab - a.rab);
-  const dr = rows.filter(x => x.dipakaiRab).length ? rows.filter(x => x.dipakaiRab) : rows;
+  const dr = rows.filter(x => x.dipakaiRab);
   const satu = x => `${x.kat} ${rpS(x.rab * x.fak)}/${x.tsat}`, uniq = a => a.filter((x, i) => a.findIndex(y => y.kat === x.kat && Math.round(y.rab) === Math.round(x.rab)) === i);
   const lebih = uniq(dr.filter(x => x.status === 'atas_ssh')), lebihW = uniq(dr.filter(x => x.status === 'atas_wilayah')), murah = uniq(dr.filter(x => x.status === 'bawah_wilayah'));
   if (!sumber) add('penting', 'Harga bahan', 'Harga bahan di RAB belum bisa dicek ke SSH, karena di berkas tidak ada sheet SSH dan SSH terbaru belum diunggah. Sementara dibandingkan dulu dengan harga wilayah Tanah Grogot–Balikpapan dari internet.', '', 'Unggah SSH terbaru di kotak Harga pembanding biar bisa dicek.');
@@ -2338,7 +2346,7 @@ function bacaHsd(sheets) {
 }
 function cekHsd(sheets, mat, add) {
   const q = (mat.rows || []).filter(x => x.quarry); if (!q.length) return { hsd: [] };
-  const H = bacaHsd(sheets), Hq = H.filter(h => { const m = kunciMat(h.nama); return m && QUARRY.has(m[0]); });
+  const H = bacaHsd(sheets).concat(hsdTemplate(sheets)), Hq = H.filter(h => { const m = kunciMat(h.nama); return m && QUARRY.has(m[0]); });
   const bahanSh = sheets.find(s => /^bahan/i.test(s.name.trim()));
   const angkutKol = bahanSh && (bahanSh.grid || []).slice(0, 25).some(r => Object.values(r.c).some(v => /ongkos\s*angkut|biaya\s*angkut/i.test(txt(v))));
   const nama = [...new Set(q.map(x => x.kat))].join(', ');
@@ -2363,7 +2371,7 @@ function cekHsd(sheets, mat, add) {
 /* ---------- Volume & backup ---------- */
 function cekVolume(sheets, S, H, items, meta, add) {
   const nn = s => String(s || '').toLowerCase().replace(/pek(erjaan|\.)\s*/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
-  const cand = sheets.filter(x => x !== S && /backup|back up|\bboq\b|\bbq\b|kuantitas|volume|perhitungan vol/i.test(x.name));
+  const cand = isTemplate(sheets) ? sheets.filter(x => /^(back up|volume)$/i.test(x.name.trim())) : sheets.filter(x => x !== S && /backup|back up|\bboq\b|\bbq\b|kuantitas|volume|perhitungan vol/i.test(x.name));
   const bk = cand.map(x => ({ x, id: identitasRab(x.grid || []) })).filter(o => !o.id.nama || !meta.nama || dice(o.id.nama.v, meta.nama) >= 0.75);
   const lain = cand.filter(x => !bk.some(o => o.x === x)).map(x => `${x.name.trim()} (${identitasRab(x.grid).nama.v})`);
   const res = { backup: bk.map(o => o.x.name.trim()), cocok: 0, beda: [], tanpa: [] };
@@ -2378,7 +2386,7 @@ function cekVolume(sheets, S, H, items, meta, add) {
     const g = x.grid || []; let Hd = null, indBk = '';
     for (const row of g) {
       const ent = Object.entries(row.c).map(([k, v]) => [+k, v]);
-      if (!Hd) { const u = ent.find(([, v]) => /uraian|jenis pekerjaan/i.test(txt(v))), j = ent.filter(([, v]) => /^(jumlah|volume|vol\.?|total vol)/i.test(txt(v))).pop(); if (u && j) { const dim = ent.filter(([, v]) => /panjang|lebar|tinggi|tebal|banyak|luas|koef|berat|jumlah titik|^p$|^l$|^t$|dia/i.test(txt(v))).map(([k]) => k); const sat = ent.find(([, v]) => /^sat/i.test(txt(v))); Hd = { u: u[0], j: j[0], dim, sat: sat ? sat[0] : null }; } continue; }
+      if (!Hd) { const u = ent.find(([, v]) => /uraian|jenis pekerjaan|^keterangan$/i.test(txt(v))), j = ent.filter(([, v]) => /^(jumlah|volume|vol\.?|total vol)/i.test(txt(v))).pop(); if (u && j) { const dim = ent.filter(([, v]) => /panjang|lebar|tinggi|tebal|banyak|luas|koef|berat|jumlah titik|^p$|^l$|^t$|dia/i.test(txt(v))).map(([k]) => k); const sat = ent.find(([, v]) => /^sat/i.test(txt(v))); Hd = { u: u[0], j: j[0], dim, sat: sat ? sat[0] : null }; } continue; }
       const vol = row.c[Hd.j];
       const ur = ent.filter(([k, v]) => k >= Hd.u - 2 && k < Hd.j && typeof v === 'string' && /[a-z]{3}/i.test(v) && !Hd.dim.includes(k)).map(([, v]) => txt(v)).join(' ');
       if (!ur) continue;
@@ -2408,7 +2416,7 @@ function cekVolume(sheets, S, H, items, meta, add) {
   const sh = S.name;
   if (res.beda.length) add('kritis', 'Volume', `${res.beda.length} volume di RAB beda dengan backup-nya, mis. ${res.beda.slice(0, 3).map(({ it, b }) => `"${it.uraian}" RAB ${fmtAngka(it.vol)} ${it.sat}, backup ${fmtAngka(b.vol)} ${b.sat || it.sat}`).join('; ')}.`, sel(sh, res.beda[0].it.r, H.vol ?? H.jm), res.beda.map(({ it, b }) => `baris ${it.r}: ${fmtAngka(it.vol)} → ${fmtAngka(b.vol)} (${b.sh} baris ${b.r})`).slice(0, 20).join('; ') + '. Volume di RAB tolong disamakan dengan backup ya.');
   if (satBeda.length) add('kritis', 'Volume', `${satBeda.length} item satuannya beda antara RAB dan backup: ${satBeda.slice(0, 4).join('; ')}.`, '', 'Satuan dan volume di RAB tolong ikut backup. Kalau di RAB pakai Ls, rincian volumenya tetap harus ada.');
-  if (res.tanpa.length) add('penting', 'Volume', `${res.tanpa.length} item RAB belum ada backup volumenya: ${res.tanpa.slice(0, 5).map(x => `"${x.uraian}" ${fmtAngka(x.vol)} ${x.sat}`).join('; ')}${res.tanpa.length > 5 ? '; …' : ''}.`, sel(sh, res.tanpa[0].r, H.vol ?? H.jm), 'Tolong ditambahkan perhitungan volumenya di backup.');
+  if (res.tanpa.length && !isTemplate(sheets)) add('penting', 'Volume', `${res.tanpa.length} item RAB belum ada backup volumenya: ${res.tanpa.slice(0, 5).map(x => `"${x.uraian}" ${fmtAngka(x.vol)} ${x.sat}`).join('; ')}${res.tanpa.length > 5 ? '; …' : ''}.`, sel(sh, res.tanpa[0].r, H.vol ?? H.jm), 'Tolong ditambahkan perhitungan volumenya di backup.');
   const isi = rows.filter(x => x.vol > 0), rinci = isi.filter(x => x.adaDim);
   if (isi.length >= 5 && rinci.length / isi.length < 0.3) add('penting', 'Volume', `Backup volume (${res.backup.join(', ')}) cuma berisi angka volume, ${isi.length - rinci.length} dari ${isi.length} baris tidak ada rincian ukurannya (panjang, lebar, tinggi, jumlah).`, '', 'Backup-nya tolong dirinci per elemen sesuai gambar, biar volumenya bisa dicek ulang di lapangan.');
   const adaRumus = (S.grid || []).some(q => q.f && Object.keys(q.f).length);
@@ -2568,9 +2576,61 @@ function cekUpah(sheets, list, sshLuar, add, totalRab) {
   return { rows, sumber: sumber ? sumber.label : '' };
 }
 
+/* ---------- Mode template Dinas (analisa CK) ---------- */
+const TPL_SHEET = ['REKAP', 'RAB', 'Back Up', 'Upah', 'Bahan', 'AHSP', 'quarry', 'biaya oprasional'];
+function isTemplate(sheets) { const n = new Set(sheets.map(s => s.name.trim().toLowerCase())); const R = sheets.find(s => s.name.trim() === 'RAB'); return n.has('back up') && n.has('ahsp') && n.has('quarry') && sheets.some(s => /^analisa/i.test(s.name.trim())) && !!R && (R.grid || []).slice(0, 4).some(g => /engineer estimate|rencana anggaran/i.test(Object.values(g.c).join(' '))); }
+function hsdTemplate(sheets) {
+  const B = sheets.find(s => s.name.trim().toLowerCase() === 'bahan'); if (!B || !isTemplate(sheets)) return [];
+  const g = B.grid || []; const hd = g.slice(0, 15).find(q => Object.values(q.c).some(v => /harga\s*total/i.test(txt(v)))); if (!hd) return [];
+  const e = Object.entries(hd.c).map(([k, v]) => [+k, txt(v).toLowerCase()]), col = re => (e.find(([, v]) => re.test(v)) || [])[0];
+  const cN = col(/bahan\s*baku/), cT = col(/harga\s*total/), cQ = col(/harga\s*quarry/), cJ = col(/jarak/), cV = col(/kecepatan/);
+  const out = [];
+  for (const q of g) { if (q.r <= hd.r || q.r > hd.r + 25) continue; const nm = txt(q.c[cN]); if (!nm || !isNum(q.c[cT])) continue; out.push({ nama: nm, nilai: q.c[cT], sh: B.name.trim(), r: q.r, rn: q.r, hq: q.c[cQ], jarak: q.c[cJ], v2: isNum(q.c[cV]) ? q.c[cV] : null, v1: isNum(q.c[cV + 1]) ? q.c[cV + 1] : null, tpl: true }); }
+  return out;
+}
+function cekTemplate(sheets, S, H, items, meta, add, tahun) {
+  if (!isTemplate(sheets)) return null;
+  const nm = new Set(sheets.map(s => s.name.trim().toLowerCase()));
+  const hilang = TPL_SHEET.filter(x => !nm.has(x.toLowerCase()));
+  if (hilang.length) add('penting', 'Template', `Sheet template ${hilang.join(', ')} tidak ada (dihapus atau diganti nama).`, '', 'Tolong pakai template apa adanya, jangan hapus atau ganti nama sheet-nya ya.');
+  const G = new Map((S.grid || []).map(g => [g.r, g])), sh = S.name;
+  const SMK = /smkk|keselamatan|k3\b/i;
+  const it2 = items.filter(it => it.uraian && it.sat && !(it.seksi && SMK.test(it.seksi.judul || '')));
+  const volKetik = [], volLain = [], hsKetik = [], hsKosong = [], jmSalah = [], bkKetik = [];
+  const BK = sheets.find(s => s.name.trim().toLowerCase() === 'back up'), bkRow = new Map(((BK || {}).grid || []).map(g => [g.r, g]));
+  for (const it of it2) {
+    const f = (G.get(it.r) || {}).f || {};
+    const fv = f[H.vol], fh = f[H.hs], fj = f[H.jm];
+    if (!fv) { if (it.vol) volKetik.push(it); } else { const m = String(fv).match(/'?([^'!]+)'?!\$?([A-Z]+)\$?(\d+)/); if (m && /back\s*up/i.test(m[1])) { const b = bkRow.get(+m[3]); if (b && !(b.f || {})[colIdxH(m[2])] && isNum(b.c[colIdxH(m[2])]) && b.c[colIdxH(m[2])] !== 0) bkKetik.push(`baris ${it.r} → Back Up!${m[2]}${m[3]}`); } else if (!m || !/^volume/i.test(m[1].trim())) volLain.push(`baris ${it.r} (=${fv})`); }
+    if (it.hs == null || it.hs === 0) hsKosong.push(it); else if (!fh && !/^(ls|lump)/i.test(it.sat)) hsKetik.push(it);
+    if (!fj) jmSalah.push(`baris ${it.r} "${it.uraian.slice(0, 40)}" ${it.jm == null ? 'jumlah harga kosong' : 'jumlah harga diketik'}`);
+  }
+  const daftar = a => a.slice(0, 8).map(x => typeof x === 'string' ? x : `baris ${x.r} "${x.uraian.slice(0, 45)}"`).join('; ') + (a.length > 8 ? `; … (${a.length} baris)` : '');
+  if (volKetik.length) add('penting', 'Volume', `${volKetik.length} kuantitas di RAB diketik langsung, tidak link ke sheet Back Up: ${daftar(volKetik)}.`, sel(sh, volKetik[0].r, H.vol), 'Kuantitas di RAB tolong pakai rumus link ke kolom VOLUME di sheet Back Up, sesuai template.');
+  if (bkKetik.length) add('penting', 'Volume', `${bkKetik.length} volume di Back Up diketik langsung tanpa rumus jumlah × panjang × lebar × tinggi: ${daftar(bkKetik)}.`, '', 'Volume di Back Up tolong dihitung pakai kolom JUMLAH, PANJANG, LEBAR, TINGGI yang sudah ada di template.');
+  if (volLain.length) add('info', 'Volume', `${volLain.length} kuantitas link ke sheet selain Back Up: ${daftar(volLain)}.`, '', 'Sebaiknya semua kuantitas diambil dari Back Up biar mudah ditelusuri.');
+  if (hsKosong.length) add('kritis', 'Rumus', `${hsKosong.length} item RAB harga satuannya kosong/nol: ${daftar(hsKosong)}.`, sel(sh, hsKosong[0].r, H.hs), 'Harga satuannya tolong diisi dengan link ke AHSP. Kalau item tidak dipakai, hapus barisnya.');
+  if (hsKetik.length) add('penting', 'Rumus', `${hsKetik.length} harga satuan di RAB diketik langsung, tidak link ke sheet AHSP/Analisa: ${daftar(hsKetik)}.`, sel(sh, hsKetik[0].r, H.hs), 'Harga satuan tolong pakai link ke kolom harga di sheet AHSP sesuai template.');
+  if (jmSalah.length) add('kritis', 'Rumus', `${jmSalah.length} jumlah harga di RAB tidak pakai rumus kuantitas × harga satuan: ${daftar(jmSalah)}.`, '', 'Kolom JUMLAH HARGA tolong pakai rumus =kuantitas×harga satuan di setiap baris.');
+  // bagian SMKK
+  const smk = items.filter(it => it.seksi && SMK.test(it.seksi.judul || ''));
+  const smkSeksi = (meta.seksi ? null : null), adaSmk = (S.grid || []).some(g => SMK.test(Object.values(g.c).join(' ')));
+  if (adaSmk && !smk.some(x => x.jm > 0)) add('penting', 'Rumus', 'Bagian SMKK di RAB belum ada satuan, volume, dan harganya.', '', 'Tolong rincian SMKK diisi satuan, volume, dan harga satuannya (biaya SMKK wajib dihitung).');
+  // REKAP mengambil semua bagian RAB
+  const RK = sheets.find(s => s.name.trim() === 'REKAP');
+  if (RK) { const ref = new Set(); for (const g of RK.grid || []) for (const f of Object.values(g.f || {})) for (const m of String(f).matchAll(new RegExp('RAB!\\$?' + colHuruf(H.jm) + '\\$?(\\d+)', 'gi'))) ref.add(+m[1]); const sek = (S.grid || []).filter(g => /^[IVX]+$/.test(txt(g.c[0])) && teksBaris(g, H)); const lepas = sek.filter(g => !ref.has(g.r)); const tanpaSum = sek.filter(g => !(g.f || {})[H.jm]); if (tanpaSum.length) add('kritis', 'Rumus', `${tanpaSum.length} bagian RAB belum punya rumus SUM jumlah bagiannya: ${tanpaSum.map(g => `${txt(g.c[0])}. ${teksBaris(g, H).replace(/^[IVX]+\s+/, '')}`).slice(0, 6).join('; ')}.`, sel(sh, tanpaSum[0].r, H.jm), 'Tolong baris judul bagian diberi rumus SUM untuk semua item di bawahnya.'); if (lepas.length) add('kritis', 'Rumus', `${lepas.length} bagian RAB tidak masuk REKAP: ${lepas.map(g => `${txt(g.c[0])}. ${teksBaris(g, H).replace(/^[IVX]+\s+/, '')}`).slice(0, 6).join('; ')}.`, 'REKAP', 'Tolong semua bagian RAB ditautkan ke REKAP.'); }
+  // tahun daftar harga
+  for (const n of ['Bahan', 'Upah']) { const X = sheets.find(s => s.name.trim() === n); if (!X) continue; const t = (X.grid || []).slice(0, 8).map(g => Object.values(g.c).join(' ')).join(' ').match(/tahun\s*(20\d\d)/i); if (t && +t[1] < tahun) add('penting', 'Harga', `Daftar harga ${n.toLowerCase()} di sheet ${n} masih Tahun ${t[1]}, padahal tahun anggaran ${tahun}.`, `${n}!B4`, `Tolong harga ${n.toLowerCase()} dimutakhirkan ke tahun ${tahun} dan disesuaikan SSH Kabupaten Paser.`); }
+  // quarry di sheet Bahan
+  const hq = hsdTemplate(sheets), pakaiQ = (meta.material && meta.material.rows || []).filter(x => x.quarry).map(x => x.kunci);
+  const kosong = hq.filter(h => { const m = kunciMat(h.nama); return m && pakaiQ.includes(m[0]) && (!(h.hq > 0) || !(h.jarak > 0)); });
+  if (kosong.length) add('penting', 'HSD quarry', `Data quarry untuk ${kosong.map(h => h.nama).join(', ')} belum lengkap (harga di quarry atau jarak masih 0).`, `Bahan!baris ${kosong[0].r}`, 'Tolong diisi harga di quarry dan jarak quarry ke lokasi di tabel quarry sheet Bahan.');
+  return { nama: 'Template analisa CK Dinas', hsd: hq.length };
+}
+
 /*ENDRAB*/
 
-return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, pdfText, kunciMat, HARGA_WILAYAH, SUMBER_WILAYAH, MAT, UPAH, kunciUpah, KELOMPOK, kelompokRab, saranRab, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
+return { analyzeRab, catatanRabDocx, parseSshFile, parseCsv, pdfText, kunciMat, HARGA_WILAYAH, SUMBER_WILAYAH, MAT, UPAH, kunciUpah, isTemplate, KELOMPOK, kelompokRab, saranRab, saranAlat, ALAT_KAITAN, parseXlsx, rabSpek, SPEK_UMUM, RAB_KUNCI, parseDocx, modelFromXml, analyze, parseDPA, parseFisikMurni, parseTemplateTKDN, matchPaket, pickTemplate, dice, terbilang2num, angka2num, num2terbilang, applyOps, applyToDocx, rezip, KATA_GEDUNG };
 })();
 if (typeof module !== 'undefined') module.exports = ENGINE;
 
@@ -2857,7 +2917,7 @@ function rcRender() {
   $('rnk').textContent = n('kritis'); $('rnp').textContent = n('penting'); $('rni').textContent = n('info');
   document.querySelectorAll('[data-rsev]').forEach(b => b.setAttribute('aria-pressed', b.dataset.rsev === rcSev));
   $('rcname').textContent = rcFile;
-  $('rcmeta').innerHTML = [['Paket', P.nama || M.nama || '—'], ['Sheet RAB', M.sheet || '—'], ['Jumlah item', M.jumlahItem ?? '—'], ['Jumlah sebelum PPN', rp(M.jumlah)], ['PPN', rp(M.ppn)], ['Total RAB', rp(M.total)], ['Pagu', rp(P.pagu)], ['HPS (FISIK MURNI)', rp(P.hps)], ['Analisa terbaca', M.analisa ? `${M.analisa} analisa${M.dipakai ? `, ${M.dipakai} dipakai RAB` : ''}` : '—']].map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join('');
+  $('rcmeta').innerHTML = [['Paket', P.nama || M.nama || '—'], ['Format berkas', M.template ? 'Template analisa CK Dinas (dibaca per posisi & rumus)' : 'Format bebas (dibaca otomatis)'], ['Sheet RAB', M.sheet || '—'], ['Jumlah item', M.jumlahItem ?? '—'], ['Jumlah sebelum PPN', rp(M.jumlah)], ['PPN', rp(M.ppn)], ['Total RAB', rp(M.total)], ['Pagu', rp(P.pagu)], ['HPS (FISIK MURNI)', rp(P.hps)], ['Analisa terbaca', M.analisa ? `${M.analisa} analisa${M.dipakai ? `, ${M.dipakai} dipakai RAB` : ''}` : '—']].map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join('');
   const order = { kritis: 0, penting: 1, info: 2 }, show = F.filter(f => !rcSev || f.tingkat === rcSev).sort((a, b) => ENGINE.kelompokRab(a) - ENGINE.kelompokRab(b) || order[a.tingkat] - order[b.tingkat]);
   $('rcttl').textContent = `Temuan RAB (${show.length})`;
   $('rclist').innerHTML = show.length ? show.map((f, i) => (i === 0 || ENGINE.kelompokRab(show[i - 1]) !== ENGINE.kelompokRab(f) ? `<h3 class="kel">${esc(ENGINE.KELOMPOK[ENGINE.kelompokRab(f)][0])} <small>(${show.filter(x => ENGINE.kelompokRab(x) === ENGINE.kelompokRab(f)).length})</small></h3>` : '') + `<article class="f ${f.tingkat}"><div class="h"><span class="tag sev">${f.tingkat[0].toUpperCase() + f.tingkat.slice(1)}</span><span class="tag">${esc(f.kat)}</span>${f.lok ? `<span class="lok">${esc(f.lok)}</span>` : ''}</div><p>${esc(f.msg)}</p>${f.butir ? `<ol class="butir">${f.butir.map(b => `<li><span class="bt ${b.tingkat}">${b.tingkat}</span> ${esc(b.msg)}${b.lok ? ` <small class="lok">${esc(b.lok)}</small>` : ''}${b.saran ? `<br><span class="bs">→ ${esc(b.saran)}</span>` : ''}</li>`).join('')}</ol>` : ''}${(f.saran || ENGINE.saranRab(f)) ? `<p class="sr">${esc(f.saran || ENGINE.saranRab(f))}</p>` : ''}</article>`).join('') : `<div class="empty">${F.length ? 'Tidak ada temuan pada filter ini.' : 'Tidak ada temuan. RAB sesuai pemeriksaan otomatis.'}</div>`;
