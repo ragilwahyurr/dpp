@@ -324,7 +324,7 @@ async function tglPws(nilai){
   }catch(e){status('Gagal menyimpan tanggal: '+esc(e.message),'bad')}
 }
 // ===== tanda personil dobel: Fisik & Pengawasan maks 1 paket per orang, Perencanaan maks 3 paket =====
-const PERS_KOL={perencanaan:{p1:'AM',p2:'AN',p3:'AO',p4:'AP',p5:'AQ',p6:'AU'},custom:{p1:'AM',p2:'AN',p3:'AO',p4:'AP',p5:'AQ',p6:'AU'}},
+const PERS_KOL={perencanaan:{p1:'AM',p2:'AN',p3:'AO',p4:'AP',p5:'AQ',p6:'AU'},custom:{p1:'AM',p2:'AN',p3:'AO',p4:'AP',p5:'AQ',p6:'AU',p7:'AV'}},
   PERS_JUDUL={fisik:{p1:'Personil Pelaksana Lapangan',p2:'Personil Petugas K3'},pengawasan:{p1:'Personil Team Leader',p2:'Personil Tenaga Ahli 2',p3:'Personil Pendukung 1',p4:'Personil Pendukung 2'}},
   PERS_MAKS={fisik:1,pengawasan:1,perencanaan:3,custom:3};
 let PERS={};
@@ -408,8 +408,8 @@ function bacaKak(t){
       d.personil.push({jenis,jabatan:jab,keahlian:kh,pendidikan:pend,pengalaman:pg,jenjang:jj});
     });
   };
-  const ta=/Tenaga\s+Ahli\s*:?([\s\S]*?)(?:Tenaga\s+Pendukung|Persyaratan\s+Kualifikasi|\n\s*\d+\s*\.\s+[A-Z])/i.exec(satu);if(ta)ambil(ta[1],'ahli');
-  const tp=/Tenaga\s+Pendukung\s*:?([\s\S]*?)(?:Persyaratan\s+Kualifikasi|\n\s*\d+\s*\.\s+[A-Z]|\n\s*[IVX]+\s*\.\s)/i.exec(satu);if(tp)ambil(tp[1],'pendukung');
+  const ta=/Tenaga\s+Ahli\s*:([\s\S]*?)(?:Tenaga\s+Pendukung\s*:|Persyaratan\s+Kualifikasi|\n\s*[IVX]+\s*\.\s)/i.exec(satu);if(ta)ambil(ta[1],'ahli');
+  const tp=/Tenaga\s+Pendukung\s*:([\s\S]*?)(?:Persyaratan\s+Kualifikasi|Persyaratan\s+Badan|\n\s*[IVX]+\s*\.\s|\n[^\n]*Laporan\s+Pendahuluan)/i.exec(satu);if(tp)ambil(tp[1],'pendukung');
   return d;
 }
 async function gpost(url,body,ct){await perluToken();const r=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+TOK.t,...(ct?{'Content-Type':ct}:{})},body});if(!r.ok)throw new Error('Drive '+r.status);return r.json()}
@@ -518,7 +518,7 @@ function drawRing(r){
 function isian(r){
   const opsi=(D.opsiMasa||[]).slice();if(r.masa&&!opsi.includes(r.masa))opsi.unshift(r.masa);
   let h=`<label class="f"><span>Tanggal MDP</span>${r.tanggalEdit===false?(MODE==='pengawasan'?`<div class="pbrow"><input type="date" id="iTgl2" value="${esc(r.tanggal)}"><button type="button" id="tglFis" class="pbb" title="Kembalikan tanggal agar mengikuti MDP Fisik">↺ Ikut Fisik</button></div><small>Default mengikuti MDP Fisik Murni; ubah bila tanggal MDP pengawasan berbeda.</small>`:`<div class="ro">${esc(tglP(r.tanggal)||'Belum ada')}</div>`):`<input type="date" id="iTgl" value="${esc(r.tanggal)}">`}${r.catatanTanggal&&!(r.tanggalEdit===false&&MODE==='pengawasan')?`<small>${esc(r.catatanTanggal)}</small>`:''}</label>`;
-  h+=`<label class="f"><span>Masa pelaksanaan</span>${r.masaEdit?`<select id="iMasa"><option value="">${esc(r.masaOtomatis||'— pilih —')}</option>${opsi.map(o=>`<option ${o===r.masa?'selected':''} value="${esc(o)}">${esc(o)} hari</option>`).join('')}</select>`:`<div class="ro">${esc(r.masa?r.masa+' hari':'—')}</div>`}${r.catatanMasa?`<small>${esc(r.catatanMasa)}</small>`:''}</label>`;
+  if(MODE!=='custom')h+=`<label class="f"><span>Masa pelaksanaan</span>${r.masaEdit?`<select id="iMasa"><option value="">${esc(r.masaOtomatis||'— pilih —')}</option>${opsi.map(o=>`<option ${o===r.masa?'selected':''} value="${esc(o)}">${esc(o)} hari</option>`).join('')}</select>`:`<div class="ro">${esc(r.masa?r.masa+' hari':'—')}</div>`}${r.catatanMasa?`<small>${esc(r.catatanMasa)}</small>`:''}</label>`;
   if(D.hps)h+=`<label class="f full"><span>HPS (Rp)</span><input inputmode="numeric" id="iHps" value="${esc(r.hps?rp(r.hps):'')}" placeholder="contoh 165.400.000"></label>`;
   $('#isian').innerHTML=h;
   const t=$('#iTgl');if(t)t.onchange=()=>simpan({tanggal:t.value},'#sv1','Menyimpan tanggal MDP…');
