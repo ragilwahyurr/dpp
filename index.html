@@ -382,7 +382,7 @@ function bacaKak(t){
   const rapi=s=>String(s||'').replace(/^[“"']+|[”"'.;,]+$/g,'').replace(/\s+/g,' ').trim();
   const d={};
   // nama pekerjaan: baris "Pekerjaan : xxx" (yang paling lengkap)
-  const nm=[...satu.matchAll(/(?:^|\n)\s*(?:Nama\s+)?(?:Paket\s+)?Pekerjaan\s*:\s*\n?\s*([^\n]{8,})/gi)].map(m=>rapi(m[1])).filter(x=>!/^(rp|\d)/i.test(x));
+  const nm=[...satu.matchAll(/(?:^|\n)\s*(?:Nama\s+)?(?:Paket\s+)?Pekerjaan\s*:\s*\n?\s*([^\n]{8,})/gi)].map(m=>rapi(String(m[1]).replace(/[.\s]+(?:Mata\s+Anggaran|Pagu|Kode\s+RUP|Lokasi|HPS|Sumber\s+Dana|Tahun\s+Anggaran|Program|Kegiatan)\b[\s\S]*$/i,''))).filter(x=>x.length>=8&&!/^(rp|\d)/i.test(x));
   d.nama=nm.sort((a,b)=>b.length-a.length)[0]||'';
   d.lokasi=rapi(cari(/Lokasi(?:\s+(?:Pekerjaan|Kegiatan))?\s*:?\s*\n\s*(?:Lokasi\s+kegiatan\s+ini\s+berada\s+di\s+)?([^\n]{3,120})/i)||cari(/Lokasi(?:\s+(?:Pekerjaan|Kegiatan))?\s*:\s*([^\n]{3,120})/i)).replace(/^Lokasi\s+kegiatan\s+ini\s+berada\s+di\s+/i,'');
   d.pagu=cari(/Pagu(?:\s+Anggaran)?\s*:?\s*Rp\.?\s*([\d.,]+)/i).replace(/[.,]00$/,'').replace(/[^\d]/g,'');
