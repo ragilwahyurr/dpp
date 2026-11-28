@@ -582,6 +582,7 @@ async function simpan(d,sv,teks){
   simpanLokal(m);
   try{const r=await api(m,'murniSimpan',[pk,d]);
     if(r&&r.nama){S[m].DC[norm(pk)]=r;simpanLokal(m);const p=S[m].D.paket.find(x=>norm(x.n)===norm(pk));if(p)p.tgl=!!r.tanggal}
+    if(d.kontrak&&r&&r.nama)progressSatu(m,r);
     if(m!==MODE||pk!==cur)return;
     if(r&&r.nama){R=r;drawRing(r);if(sv==='#sv1')isian(r)}
     $(sv).className='sv ok';$(sv).textContent='✓ Tersimpan'}
@@ -732,6 +733,63 @@ window.addEventListener('load',siapGis);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')cek()});
   setInterval(()=>{if(document.visibilityState==='visible')cek()},5*60*1000);
 })();
+// ===== koneksi ke file PROGRESS: Data Kontrak & Personil ditulis ke sheet KONTRAK =====
+const PROG_ID='1nHH_81Mjy4h9-1We0Kq51PhLNlnn474k24wRTvset-g',PROG_SH='KONTRAK',
+  PROG_JENIS={fisik:'Fisik',perencanaan:'Perencanaan',pengawasan:'Pengawasan',custom:'Custom'},
+  PROG_HEAD=['Kunci','Jenis','Nama Paket','Perusahaan','NPWP','Nilai Kontrak','Personil 1','Personil 2','Personil 3','Personil 4','Personil 5','Personil 6','Personil 7','Diperbarui'];
+const kunciP=s=>String(s||'').toLowerCase().replace(/[^0-9a-z]/g,'');
+const angkaP=v=>{if(typeof v==='number')return v;const s=String(v||'').replace(/[.,]00\s*$/,'').replace(/[^\d]/g,'');return s?Number(s):''};
+const isiP=v=>{const s=String(v??'').trim();return s&&s!=='-'?s:''};
+function barisProgress(m,nama,k){
+  const F=(S[m]&&S[m].D&&S[m].D.kontrak)||(D&&D.kontrak)||[],g=t=>{const f=F.find(x=>x.tipe===t);return f?k[f.k]:''};
+  const pers=F.filter(f=>f.tipe==='teks').map(f=>isiP(k[f.k])).slice(0,7);while(pers.length<7)pers.push('');
+  return [kunciP(nama),PROG_JENIS[m]||m,String(nama).replace(/\s+/g,' ').trim(),isiP(g('perusahaan')),isiP(g('npwp')),angkaP(g('nilai')),...pers,new Date().toLocaleString('id-ID')];
+}
+async function progressTulis(rows){
+  if(!rows.length)return;
+  const base='https://sheets.googleapis.com/v4/spreadsheets/'+PROG_ID;
+  const a=await (await gapi(base+'/values/'+encodeURIComponent(PROG_SH+'!A1:A2000'))).json();
+  const kol=(a.values||[]).map(r=>String(r[0]||''));let akhir=Math.max(kol.length,1);
+  const data=[];
+  rows.forEach(r=>{let i=kol.indexOf(r[0]);if(i<1){i=akhir++;kol[i]=r[0]}data.push({range:PROG_SH+'!A'+(i+1)+':N'+(i+1),values:[r]})});
+  await sheetsPost(base+'/values:batchUpdate',{valueInputOption:'RAW',data});
+}
+async function progressSatu(m,r){
+  try{if(!r||!r.nama)return;await progressTulis([barisProgress(m,r.nama,r.kontrak||{})])}catch(e){console.warn('PROGRESS',e)}
+}
+// sinkron penuh dari 4 spreadsheet DPP (berjalan otomatis maks. tiap 6 jam setelah login)
+const PROG_MAP={fisik:{h:['Kontrak Perusahaan','Kontrak NPWP','Kontrak Nilai','Personil Pelaksana Lapangan','Personil Petugas K3']},
+ pengawasan:{h:['Kontrak Perusahaan','Kontrak NPWP','Kontrak Nilai','Personil Team Leader','Personil Tenaga Ahli 2','Personil Pendukung 1','Personil Pendukung 2']},
+ perencanaan:{c:['AJ','AK','AL','AM','AN','AO','AP','AQ','AU']},custom:{c:['AJ','AK','AL','AM','AN','AO','AP','AQ','AU','AV']}};
+async function progressSemua(){
+  const base='https://sheets.googleapis.com/v4/spreadsheets/',g=async u=>(await gapi(u)).json();
+  const ada={};((await g(base+PROG_ID+'/values/'+encodeURIComponent(PROG_SH+'!A2:M2000'))).values||[]).forEach(r=>{if(r[0])ada[r[0]]=r});
+  const kirim=[];
+  for(const m of Object.keys(PROG_MAP)){
+    try{
+      let cols=PROG_MAP[m].c;
+      if(!cols){const h=((await g(base+SS_ALL[m]+'/values/'+encodeURIComponent('DATA!1:1'))).values||[[]])[0].map(x=>String(x).trim().toLowerCase());cols=PROG_MAP[m].h.map(t=>{const i=h.lastIndexOf(t.toLowerCase());return i<0?null:kolHuruf(i)});if(cols.includes(null))continue}
+      const r=await g(base+SS_ALL[m]+'/values:batchGet?majorDimension=COLUMNS&'+['G',...cols].map(c=>'ranges='+encodeURIComponent('DATA!'+c+'2:'+c+'800')).join('&'));
+      const V=r.valueRanges.map(x=>(x.values||[[]])[0]||[]);
+      V[0].forEach((nm,i)=>{nm=String(nm||'').replace(/\s+/g,' ').trim();if(!nm||nm==='-')return;const x=j=>V[j]?V[j][i]:'';
+        const pers=[];for(let j=4;j<V.length;j++)pers.push(isiP(x(j)));while(pers.length<7)pers.push('');
+        const row=[kunciP(nm),PROG_JENIS[m],nm,isiP(x(1)),isiP(x(2)),angkaP(x(3)),...pers.slice(0,7)];
+        if(!(row[3]||row[5]||pers.some(Boolean)))return;
+        const lama=ada[row[0]];
+        if(lama){for(let j=3;j<13;j++)if(row[j]===''&&lama[j])row[j]=lama[j];
+          if(row.slice(3,13).every((v,j)=>j===2?String(angkaP(v))===String(angkaP(lama[5])):String(v??'').trim()===String(lama[j+3]??'').trim()))return}
+        kirim.push([...row,new Date().toLocaleString('id-ID')]);
+      });
+    }catch(e){console.warn('PROGRESS '+m,e)}
+  }
+  if(kirim.length)await progressTulis(kirim);
+  return kirim.length;
+}
+setInterval(async()=>{
+  try{if(typeof tokOk!=='function'||!tokOk())return;let t=0;try{t=+localStorage.getItem('dpp_prog_t')||0}catch(e){}
+    if(Date.now()-t<6*3600e3)return;try{localStorage.setItem('dpp_prog_t',String(Date.now()))}catch(e){}
+    await progressSemua()}catch(e){console.warn('PROGRESS',e)}
+},60e3);
 </script>
 </body>
 </html>
