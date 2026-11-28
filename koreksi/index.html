@@ -2459,10 +2459,11 @@ function cekVolume(sheets, S, H, items, meta, add) {
   let ptr = 0;
   const cari = it => { const L = viaLink(it); if (L >= 0) return L; const a = nn(it.uraian), ind = indukRab[it.r] || ''; let best = -1, bs = 0; for (let k = 0; k < rows.length; k++) { const s0 = nn(rows[k].ur) === a ? 1 : dice(it.uraian, rows[k].ur); if (s0 < 0.82) continue; const s = s0 + (ind && rows[k].ind ? 0.6 * dice(ind, rows[k].ind) : 0) + (k >= ptr && k < ptr + 60 ? 0.15 : 0); if (s > bs) { bs = s; best = k; } } return best; };
   const SMKK = /smkk|k3\b|keselamatan|kesehatan kerja|\bapd\b|alat pelindung|rambu|asuransi|bpjs|jaminan sosial|p3k|kotak obat|apar|pemadam|sosialisasi|induksi|safety|pelatihan|simulasi|spanduk|poster|bendera|pagar pengaman|barikade|helm|rompi|sepatu|sarung tangan|masker|kacamata|ear plug|tali pengaman|full body|harness|jaring pengaman|petugas k|ahli k|personil k|pemeriksaan kesehatan|fasilitas sarana/i;
+  const satBuah = s => /^(bh|buah|bua|pcs|pc)\.?$/i.test(String(s || '').trim());
   const smkk = it => SMKK.test(it.uraian) || SMKK.test((it.seksi && it.seksi.judul) || '') || SMKK.test(indukRab[it.r] || '');
   const satBeda = [];
   for (const it of items.filter(x => x.uraian && (x.vol || x.vol === 0) && x.jm)) {
-    const k = cari(it); if (k < 0) { if (it.vol > 0 && !/^ls$|^lump/i.test(it.sat) && !smkk(it)) res.tanpa.push(it); continue; }
+    const k = cari(it); if (k < 0) { if (it.vol > 0 && !/^ls$|^lump/i.test(it.sat) && !smkk(it) && !satBuah(it.sat)) res.tanpa.push(it); continue; }
     if (k >= ptr) ptr = k + 1;
     const b = rows[k]; it.backup = b;
     const s1 = satNorm(it.sat), s2 = satNorm(b.sat);
@@ -2676,7 +2677,7 @@ function cekTemplate(sheets, S, H, items, meta, add, tahun) {
   for (const it of it2) {
     const f = (G.get(it.r) || {}).f || {};
     const fv = f[H.vol], fh = f[H.hs], fj = f[H.jm];
-    if (!fv) { if (it.vol) volKetik.push(it); } else { const m = String(fv).match(/'?([^'!]+)'?!\$?([A-Z]+)\$?(\d+)/); if (m && /back\s*up/i.test(m[1])) { const b = bkRow.get(+m[3]); if (b && !(b.f || {})[colIdxH(m[2])] && isNum(b.c[colIdxH(m[2])]) && b.c[colIdxH(m[2])] !== 0) bkKetik.push(`baris ${it.r} → Back Up!${m[2]}${m[3]}`); } else if (!m || !/^volume/i.test(m[1].trim())) volLain.push(`baris ${it.r} (=${fv})`); }
+    if (!fv) { if (it.vol && !/^(bh|buah|bua|pcs|pc)\.?$/i.test(String(it.sat || '').trim())) volKetik.push(it); } else { const m = String(fv).match(/'?([^'!]+)'?!\$?([A-Z]+)\$?(\d+)/); if (m && /back\s*up/i.test(m[1])) { const b = bkRow.get(+m[3]); if (b && !(b.f || {})[colIdxH(m[2])] && isNum(b.c[colIdxH(m[2])]) && b.c[colIdxH(m[2])] !== 0) bkKetik.push(`baris ${it.r} → Back Up!${m[2]}${m[3]}`); } else if (!m || !/^volume/i.test(m[1].trim())) volLain.push(`baris ${it.r} (=${fv})`); }
     if (it.vol > 0) { if (it.hs == null || it.hs === 0) hsKosong.push(it); else if (!fh && !/^(ls|lump)/i.test(it.sat)) hsKetik.push(it); }
     if (!fj) jmSalah.push(`baris ${it.r} "${it.uraian.slice(0, 40)}" ${it.jm == null ? 'jumlah harga kosong' : 'jumlah harga diketik'}`);
   }
