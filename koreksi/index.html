@@ -2012,6 +2012,22 @@ function analyzeRab(sheets, opt) {
     if (tak.length) add('penting', 'AHSP', `${tak.length} kode analisa di RAB tidak ada di sheet analisa (kemungkinan kode AHSP lama): ${tak.slice(0, 5).join('; ')}.`, '');
     const tanpa = items.filter(it => it.hs && it.vol && !/^ls$/i.test(it.sat)).length - [...items].filter(it => it.hs && it.vol).filter(it => { const kk = it.kode ? it.kode.replace(/\s+/g, '').replace(/\.$/, '') : ''; return (kk && an.has(kk)) || (it.uraian && namaAn.some(([, x]) => dice(it.uraian, x.nama) > 0.8)); }).length;
     meta.dipakai = pakai.size; pakaiBlok = pakai;
+    { // ---- overhead & keuntungan pada analisa yang dipakai + di RAB/REKAP
+      const pk = [...pakai.entries()], ohs = pk.filter(([, b]) => b.oh != null), tanpa = pk.filter(([, b]) => b.oh == null && b.d > 0);
+      const pct = v => (v * 100).toFixed(1).replace('.', ',').replace(/,0$/, '') + '%';
+      const lebih = ohs.filter(([, b]) => b.oh > 0.15 + 1e-9);
+      if (lebih.length) add('kritis', 'Overhead', `${lebih.length} analisa yang dipakai RAB memakai overhead & keuntungan di atas 15%: ${lebih.slice(0, 5).map(([k, b]) => `${k.startsWith('~') ? '"' + b.nama + '"' : k} ${pct(b.oh)}`).join('; ')}.`, '', 'Biaya umum & keuntungan maksimal 15% sesuai Permen PUPR 8/2023 ya, tolong disesuaikan.');
+      const grup = new Map(); for (const [k, b] of ohs) { const v = Math.round(b.oh * 1000) / 1000; grup.set(v, (grup.get(v) || []).concat([[k, b]])); }
+      if (grup.size > 1) { const g = [...grup.entries()].sort((x, y) => y[1].length - x[1].length); add('penting', 'Overhead', `Persentase overhead & keuntungan di analisa yang dipakai RAB tidak seragam: ${g.map(([v, a]) => `${pct(v)} (${a.length} analisa${g[0][0] !== v ? ', mis. ' + a.slice(0, 3).map(([k, b]) => k.startsWith('~') ? '"' + b.nama + '"' : k).join(', ') : ''})`).join('; ')}.`, '', `Untuk satu paket sebaiknya pakai satu persentase overhead yang sama (mis. ${pct(g[0][0])}), kecuali ada alasan teknis yang dijelaskan.`); }
+      const nol = ohs.filter(([, b]) => b.oh === 0);
+      if (tanpa.length + nol.length >= 1 && ohs.length + tanpa.length > 0) { const t = tanpa.concat(nol); if (t.length) add('penting', 'Overhead', `${t.length} analisa yang dipakai RAB tidak mencantumkan biaya umum & keuntungan (overhead): ${t.slice(0, 5).map(([k, b]) => k.startsWith('~') ? '"' + b.nama + '"' : k).join(', ')}${t.length > 5 ? ', …' : ''}.`, '', 'Tolong dicek, harga satuan pekerjaan harus sudah termasuk overhead & keuntungan (D + E) sesuai format AHSP.'); }
+      const ohRows = []; const cariOh = (Sx, bawah) => { for (const g of (Sx.grid || [])) { if (bawah && g.r <= bawah) continue; const tx = Object.values(g.c).filter(v => typeof v === 'string').join(' '); if (!/overhead|biaya umum|keuntungan|profit|\bbuk\b/i.test(tx) || /ppn|pajak/i.test(tx)) continue; const nums = Object.values(g.c).filter(v => isNum(v) && v > 0); if (nums.length) ohRows.push({ sh: Sx.name.trim(), r: g.r, tx: tx.trim().slice(0, 60), p: nums.find(v => v < 1) }); } };
+      const batas = totalRow ? (typeof totalRow === 'object' ? totalRow.r : totalRow) : 0; cariOh(S, 0); for (const Sx of sheets.filter(x => /rekap/i.test(x.name) && x !== S)) cariOh(Sx, 0);
+      const adaDiAnalisa = ohs.some(([, b]) => b.oh > 0);
+      if (ohRows.length && adaDiAnalisa) add('kritis', 'Overhead', `Overhead & keuntungan dihitung dobel: di analisa sudah ada (${[...grup.keys()].filter(v => v > 0).map(pct).join(', ')}), tapi di RAB/REKAP masih ditambahkan lagi pada ${ohRows.slice(0, 3).map(o => `${o.sh} baris ${o.r} "${o.tx}"${o.p ? ' ' + pct(o.p) : ''}`).join('; ')}.`, `${ohRows[0].sh}!baris ${ohRows[0].r}`, 'Baris overhead & keuntungan di RAB/REKAP tolong dihapus, karena sudah masuk di harga satuan analisa ya.');
+      else if (ohRows.length) { const p = ohRows.find(o => o.p); if (p && p.p > 0.15 + 1e-9) add('kritis', 'Overhead', `Overhead & keuntungan di ${p.sh} baris ${p.r} sebesar ${pct(p.p)}, melebihi batas 15%.`, `${p.sh}!baris ${p.r}`, 'Maksimal 15% ya, tolong disesuaikan.'); }
+      meta.overhead = { nilai: [...grup.keys()], dipakai: ohs.length, tanpa: tanpa.length, rab: ohRows.length };
+    }
   } else if (items.length) add('penting', 'Analisa', 'Di berkas tidak ada sheet analisa harga satuan, jadi harga satuan RAB tidak bisa diuji.', '', 'Tolong dilampirkan analisa harga satuan (AHSP) yang dipakai ya.');
 
   // ---- 2b. Harga material vs SSH
@@ -2946,7 +2962,8 @@ function rcRender() {
     cek('Volume sesuai backup', buruk(kat(/^Volume$/))),
     cek('Rumus & hitungan benar (jumlah, PPN, pembulatan, terbilang)', buruk(kat(/^(Hitungan|Rumus|PPN|Pembulatan|Terbilang|Penomoran|Rumus & hitungan)$/))),
     cek('Analisa memakai AHSP terbaru (SE 47/SE/Dk/2026)', buruk(kat(/^AHSP$/))),
-    cek('Hitungan analisa benar & tidak ada mark-up', buruk(kat(/^(Analisa|Overhead|Mark-up|Harga)$/))),
+    cek('Hitungan analisa benar & tidak ada mark-up', buruk(kat(/^(Analisa|Mark-up|Harga)$/))),
+    { ...cek('Overhead & keuntungan maks. 15%, seragam, tidak dobel', buruk(kat(/^Overhead$/))), ...(M.overhead && !buruk(kat(/^Overhead$/)).length ? { det: M.overhead.nilai.length ? 'overhead ' + M.overhead.nilai.map(v => (v * 100).toFixed(1).replace('.', ',').replace(/,0$/, '') + '%').join(', ') : 'belum terbaca' } : {}), ...(!M.overhead ? { st: 'na', det: 'tidak ada analisa' } : {}) },
     { label: 'Harga bahan tidak di atas SSH / harga online', st: !MT.rows.length ? 'na' : matUp.length ? 'x' : 'ok', det: !MT.rows.length ? 'belum ada bahan yang bisa dicek' : matUp.length ? `${matUp.length} bahan di atas pembanding` : `${MT.rows.length} bahan dicek` },
     { label: 'Upah pekerja, tukang, kepala tukang & mandor tidak di atas SSH', st: !UP.rows.length || !UP.rows.some(x => x.ssh != null) ? 'na' : upUp.length ? 'x' : 'ok', det: !UP.rows.length ? 'upah belum terbaca' : !UP.rows.some(x => x.ssh != null) ? 'SSH upah belum ada' : upUp.length ? `${upUp.length} upah di atas SSH` : 'sesuai' },
     q.length ? cek('Harga quarry berdasarkan analisa HSD', buruk(kat(/^HSD quarry$/))) : { label: 'Harga quarry berdasarkan analisa HSD', st: 'na', det: 'tidak ada bahan quarry' },
