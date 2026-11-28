@@ -2212,7 +2212,7 @@ const QUARRY = new Set(MAT.filter(m => m[4]).map(m => m[0]));
    ppu  = SSH Kab. Penajam Paser Utara TA 2025 (Perbup PPU No. 3/2025), kabupaten tetangga di jalur Tanah Grogot–Balikpapan
    psr  = harga pasar online Balikpapan (toko bangunan di Tokopedia/BigGo, sobatbangun, dan perkiraan bangun.com edisi 16 Nov 2026 untuk Balikpapan) */
 const HARGA_WILAYAH = {
-  semen: { psr: [1400, 1820], ket: 'Balikpapan: Tonasa 50 kg Rp70.000–Rp85.999/sak, Conch 50 kg Rp80.999–Rp91.000/sak; Banjarmasin: Tonasa 50 kg Rp76.800–Rp79.000/sak' },
+  semen: { psr: [1400, 1820], ket: 'Setara Rp56.000–Rp72.800 per sak 40 kg. Dari harga sak 50 kg — Balikpapan: Tonasa 50 kg Rp70.000–Rp85.999/sak, Conch 50 kg Rp80.999–Rp91.000/sak; Banjarmasin: Tonasa 50 kg Rp76.800–Rp79.000/sak' },
   besi_polos: { psr: [13517, 14832], ket: 'Balikpapan (TB Kota Berkat): polos 6 mm Rp39.499, 8 mm Rp66.999, 10 mm Rp100.999, 12 mm Rp143.999 per batang 12 m' },
   besi_ulir: { psr: [13652, 13718], ket: 'Balikpapan (TB Kota Berkat): 10 mm Rp100.999, ulir 13 mm Rp171.499, ulir 16 mm Rp259.499 per batang 12 m' },
   besi: { psr: [13517, 14832], ket: 'Balikpapan (TB Kota Berkat): besi beton SNI 6–16 mm Rp39.499–Rp259.499 per batang 12 m' },
@@ -2297,7 +2297,7 @@ function cekMaterialSsh(sheets, an, pakai, sshLuar, add, survei, bobotList, tota
       continue; }
     const bas = BAS.find(b => { const m = kunciMat(b.teks); if (!m || m[0] !== o.m[0]) return false; const p = perSatuan(m, b.harga, b.sat, b.teks); return p && Math.abs(p - o.p) <= Math.max(1, o.p * 0.005); }) || BAS.find(b => { const m = kunciMat(b.teks); return m && m[0] === o.m[0] && b.nums.some(v => Math.abs(v - o.harga) <= Math.max(0.5, o.harga * 0.002)); });
     let fak = 1, tsat = o.m[2].replace('m3', 'm³').replace('m2', 'm²');
-    if (o.m[0] === 'semen') { const w = +((String((bas && bas.teks) || o.nama).match(/(40|50)\s*kg/i) || [])[1] || 50); fak = w; tsat = `sak ${w} kg`; }
+    if (o.m[0] === 'semen') { fak = 40; tsat = 'sak 40 kg'; }
     const k = o.m[0], R = ref[k] || (k.startsWith('besi_') ? ref.besi : null), W = SV[k] || (k.startsWith('besi_') ? SV.besi : null);
     const wl = W ? [W.ppu, ...(W.psr || []), W.lok].filter(isNum) : [], wMin = wl.length ? Math.min(...wl) : null, wMax = wl.length ? Math.max(...wl) : null;
     const up = R && o.p > R.p + Math.max(1, R.p * 0.001), atasW = !up && wMax != null && o.p > wMax * 1.1, bawahW = wMin != null && o.p < wMin * 0.6;
@@ -2993,7 +2993,7 @@ function rcRender() {
 }
 let rcSemua = false, sshData = null, riwayatHarga = []; try { riwayatHarga = JSON.parse(localStorage.getItem('spek-riwayat-harga') || '[]') || []; } catch {}
 function simpanRiwayat(R) { const rec = ENGINE.rekamHarga(R); if (!rec || !rec.items.length || !rec.paket) return; riwayatHarga = riwayatHarga.filter(x => !(x.lokasi === rec.lokasi && x.paket.toLowerCase() === rec.paket.toLowerCase())); riwayatHarga.push(rec); try { localStorage.setItem('spek-riwayat-harga', JSON.stringify(riwayatHarga.slice(-200))); } catch {} } try { sshData = JSON.parse(localStorage.getItem('spek-ssh') || 'null'); } catch {}
-const MANF = ENGINE.MAT.filter(m => m[0] !== 'besi').map(m => [m[0], m[1], m[0] === 'semen' ? 'zak 50 kg' : m[2].replace('m3', 'm³').replace('m2', 'm²'), m[0] === 'semen' ? 'Semen PC 50 kg' : m[1], m[0] === 'semen' ? 'Zak' : { kg: 'Kg', m3: 'M3', m2: 'M2', lbr: 'Lbr', bh: 'Bh', btg: 'Btg' }[m[2]]]).concat(ENGINE.UPAH.filter(u => ['u_pekerja', 'u_tukang', 'u_kepala', 'u_mandor'].includes(u[0])).map(u => [u[0], 'Upah ' + u[1].toLowerCase(), 'OH', 'Tenaga ' + u[1].replace(' / pengemudi', ''), 'Orang / Hari']));
+const MANF = ENGINE.MAT.filter(m => m[0] !== 'besi').map(m => [m[0], m[1], m[0] === 'semen' ? 'zak 40 kg' : m[2].replace('m3', 'm³').replace('m2', 'm²'), m[0] === 'semen' ? 'Semen PC 40 kg' : m[1], m[0] === 'semen' ? 'Zak' : { kg: 'Kg', m3: 'M3', m2: 'M2', lbr: 'Lbr', bh: 'Bh', btg: 'Btg' }[m[2]]]).concat(ENGINE.UPAH.filter(u => ['u_pekerja', 'u_tukang', 'u_kepala', 'u_mandor'].includes(u[0])).map(u => [u[0], 'Upah ' + u[1].toLowerCase(), 'OH', 'Tenaga ' + u[1].replace(' / pengemudi', ''), 'Orang / Hari']));
 let survei = {}; try { survei = JSON.parse(localStorage.getItem('spek-survei') || '{}') || {}; } catch {}
 const kunciDari = t => { const u = ENGINE.kunciUpah(t); if (u) return u[0]; const m = ENGINE.kunciMat(t); return m ? m[0] : ''; };
 const fmtRp = v => v ? Math.round(v).toLocaleString('id-ID') : '';
@@ -3002,9 +3002,9 @@ function sshManFill() {
   const W = ENGINE.HARGA_WILAYAH;
   $('sshmanf').innerHTML = '<thead><tr><th>Material (satuan)</th><th>SSH (Rp)</th><th>Survei lokasi (Rp)</th><th>Harga online (Balikpapan/Banjarmasin)</th></tr></thead><tbody>' + MANF.map(([k, lbl, sat]) => {
     const it = sshData && sshData.items.find(x => kunciDari(x.teks) === k);
-    const sv = it && (k !== 'semen' || /50\s*kg/i.test(it.teks) && /zak|sak/i.test(it.sat)) ? fmtRp(it.harga) : '';
-    const w = W[k], wt = w ? (w.psr || []) : [], ws = wt.length ? (k === 'semen' ? 'Rp' + fmtRp(Math.min(...wt) * 50) + '–Rp' + fmtRp(Math.max(...wt) * 50) + '/zak 50 kg' : 'Rp' + fmtRp(Math.min(...wt)) + (Math.max(...wt) !== Math.min(...wt) ? '–Rp' + fmtRp(Math.max(...wt)) : '')) : ((ENGINE.MAT.find(m => m[0] === k) || [])[4] ? 'pakai analisa HSD' : '—');
-    const su = survei[k] ? fmtRp(k === 'semen' ? survei[k] * 50 : survei[k]) : '';
+    const sv = !it ? '' : k !== 'semen' ? fmtRp(it.harga) : /zak|sak/i.test(it.sat) && /(40|50)\s*kg/i.test(it.teks) ? fmtRp(Math.round(it.harga * 40 / +it.teks.match(/(40|50)\s*kg/i)[1])) : '';
+    const w = W[k], wt = w ? (w.psr || []) : [], ws = wt.length ? (k === 'semen' ? 'Rp' + fmtRp(Math.min(...wt) * 40) + '–Rp' + fmtRp(Math.max(...wt) * 40) + '/zak 40 kg' : 'Rp' + fmtRp(Math.min(...wt)) + (Math.max(...wt) !== Math.min(...wt) ? '–Rp' + fmtRp(Math.max(...wt)) : '')) : ((ENGINE.MAT.find(m => m[0] === k) || [])[4] ? 'pakai analisa HSD' : '—');
+    const su = survei[k] ? fmtRp(k === 'semen' ? survei[k] * 40 : survei[k]) : '';
     return `<tr><td>${esc(lbl)} <small>/${esc(sat)}</small></td><td><input id="sm_${k}" inputmode="numeric" placeholder="—" value="${sv}" style="width:120px"></td><td>${k.startsWith('u_') ? '<small>—</small>' : `<input id="sv_${k}" inputmode="numeric" placeholder="—" value="${su}" style="width:120px">`}</td><td><small>${k.startsWith('u_') ? 'isi dari SSH upah' : esc(ws)}</small></td></tr>`; }).join('') + '</tbody>';
   $('srcw').innerHTML = 'Sumber harga online: ' + ENGINE.SUMBER_WILAYAH.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${esc(t)}</a>`).join(' · ');
 }
@@ -3014,7 +3014,7 @@ $('sshmansave').addEventListener('click', () => {
   const keep = (sshData ? sshData.items : []).filter(x => !man.some(m => m.k === kunciDari(x.teks)));
   const items = [...keep, ...man.map(m => ({ teks: m.teks, sat: m.sat, harga: m.harga, sh: 'SSH', r: 0 }))];
   sshData = items.length ? { label: sshData && keep.length && man.length ? sshData.label + ' + input manual' : sshData && !man.length ? sshData.label : 'SSH input manual', items } : null;
-  survei = {}; MANF.forEach(([k]) => { const v = angka('sv_' + k); if (v > 0) survei[k] = k === 'semen' ? v / 50 : v; });
+  survei = {}; MANF.forEach(([k]) => { const v = angka('sv_' + k); if (v > 0) survei[k] = k === 'semen' ? v / 40 : v; });
   try { sshData ? localStorage.setItem('spek-ssh', JSON.stringify(sshData)) : localStorage.removeItem('spek-ssh'); localStorage.setItem('spek-survei', JSON.stringify(survei)); } catch {}
   sshStatus(); if (rcSheets) rabCek(); toast('Harga pembanding disimpan');
 });
