@@ -2981,22 +2981,30 @@ function rcRender() {
   const MT = M.material || { rows: [] }, UP = M.upah || { rows: [] }, ALL = R.findings;
   const kat = re => ALL.filter(f => re.test(f.kat)), buruk = a => a.filter(f => f.tingkat !== 'info');
   const pesan = f => f.butir ? f.butir.map(b => b.msg) : [f.msg];
+  const ringkas = f => { const m = f.msg, n = (m.match(/^(\d+)/) || [])[1];
+    if (/keterangan paket di RAB tidak sama dengan DPA/.test(m)) return ENGINE.pecahMsg(m)[1].map(t => (t.match(/^(.+?) di RAB/) || [, t.slice(0, 40)])[1] + ' tidak sesuai DPA');
+    const R = [[/lewat dari pagu/, 'Total RAB melebihi pagu'], [/beda dengan HPS/, 'Total RAB beda dengan HPS'], [/sedikit di atas pagu/, 'Total RAB sebelum dibulatkan di atas pagu'], [/^Tahun anggaran/, 'Tahun anggaran tidak sesuai'], [/^Lokasi di RAB/, 'Lokasi tidak sesuai'],
+      [/masih mengacu/, 'Analisa masih pakai Permen lama'], [/memakai SE Dirjen/, 'Analisa masih pakai SE lama (' + ((m.match(/SE Dirjen Bina Konstruksi ([^.]+?)\./) || [])[1] || '') + ')'], [/kode analisa di RAB tidak ada/, `${n} kode analisa tidak ada di sheet analisa`], [/masih mencantumkan SE lama/, 'Sebagian sheet analisa masih SE lama'],
+      [/tidak sama dengan perkalian ukurannya/, `${n} volume backup tidak sama dengan P × L × T`], [/sel error di sheet backup/, 'Ada sel error di backup'], [/diketik angka/, `${n} volume backup diketik, bukan rumus`],
+      [/di atas 15%|melebihi batas 15%/, 'Overhead lebih dari 15%'], [/tidak seragam/, 'Overhead tidak seragam'], [/tidak mencantumkan biaya umum/, `${n} analisa tanpa overhead`], [/dihitung dobel/, 'Overhead dihitung dobel di RAB/REKAP'], [/bukan 13%/, `${n} analisa overhead-nya bukan 13%`], [/tidak sama dengan persentase yang tercantum/, 'Hitungan overhead tidak sesuai persentasenya']];
+    for (const [re, t] of R) if (re.test(m)) return [t];
+    return [m.split(/[.:](\s|$)/)[0].slice(0, 90)]; };
   const item = (label, temuan, na, okDet) => ({ label, st: na ? 'na' : temuan.length ? 'x' : 'ok', det: na ? na : temuan.length ? 'Ada temuan' : ('Sesuai' + (okDet ? ' · ' + okDet : '')), list: na ? [] : temuan });
   const dpa = kat(/^Data DPA$/), dpaNa = dpa.some(f => /tidak ketemu/i.test(f.msg)) ? 'Belum bisa dicek: paket tidak ketemu di DPA/FISIK MURNI' : '';
   const UTAMA = k => k && (/^(semen|besi|bata_merah|bata_ringan)/.test(k) || (ENGINE.MAT.find(m => m[0] === k) || [])[4]);
   const utama = MT.rows.filter(x => UTAMA(x.kunci)), adaSsh = utama.some(x => x.ssh != null);
   const fmt = v => 'Rp' + Math.round(v).toLocaleString('id-ID');
   const OV = M.overhead, ovNa = !OV ? 'Belum bisa dicek: analisa tidak terbaca' : !OV.nilai.length ? 'Belum bisa dicek: persentase overhead di analisa tidak terbaca' : '';
-  const ovT = kat(/^Overhead$/).flatMap(pesan).concat(OV && OV.nilai.some(v => Math.abs(v - 0.13) > 1e-6) && !kat(/^Overhead$/).some(f => /bukan 13%/.test(f.msg)) ? [`Overhead yang dipakai ${OV.nilai.map(v => (v * 100).toFixed(1).replace('.', ',').replace(/,0$/, '') + '%').join(', ')}, bukan 13%.`] : []);
+  const ovT = kat(/^Overhead$/).flatMap(ringkas).concat(OV && OV.nilai.some(v => Math.abs(v - 0.13) > 1e-6) && !kat(/^Overhead$/).some(f => /bukan 13%/.test(f.msg)) ? [`Overhead ${OV.nilai.map(v => (v * 100).toFixed(1).replace('.', ',').replace(/,0$/, '') + '%').join(', ')}, bukan 13%`] : []);
   const CL = [
-    item('Program, sub kegiatan, nomenklatur paket & pagu sesuai DPA', buruk(dpa).flatMap(pesan), dpaNa),
-    item('Harga bahan utama (semen, besi tulangan, quarry, bata) tidak lebih dari SSH', utama.filter(x => x.status === 'atas_ssh').map(x => `${x.kat}: di RAB ${fmt(x.rab * x.fak)}/${x.tsat}, SSH ${fmt(x.ssh * x.fak)}/${x.tsat}`), !utama.length ? 'Belum bisa dicek: bahan utama tidak terbaca di analisa' : !adaSsh ? 'Belum bisa dicek: SSH belum diunggah' : '', `${utama.length} bahan dicek`),
-    item('Analisa sesuai AHSP terbaru (SE Dirjen Bina Konstruksi 47/SE/Dk/2026)', buruk(kat(/^AHSP$/)).flatMap(pesan), M.analisa ? '' : 'Belum bisa dicek: sheet analisa tidak ada'),
-    item('Rumus aritmatika di backup sesuai rumus matematika', buruk(kat(/^Rumus backup$/)).flatMap(pesan), M.volume && M.volume.backup && M.volume.backup.length ? '' : 'Belum bisa dicek: backup volume tidak ada'),
+    item('Program, sub kegiatan, nomenklatur paket & pagu sesuai DPA', buruk(dpa).flatMap(ringkas), dpaNa),
+    item('Harga bahan utama (semen, besi tulangan, quarry, bata) tidak lebih dari SSH', utama.filter(x => x.status === 'atas_ssh').map(x => `${x.kat} lebih mahal dari SSH`), !utama.length ? 'Belum bisa dicek: bahan utama tidak terbaca di analisa' : !adaSsh ? 'Belum bisa dicek: SSH belum diunggah' : '', `${utama.length} bahan dicek`),
+    item('Analisa sesuai AHSP terbaru (SE Dirjen Bina Konstruksi 47/SE/Dk/2026)', buruk(kat(/^AHSP$/)).flatMap(ringkas), M.analisa ? '' : 'Belum bisa dicek: sheet analisa tidak ada'),
+    item('Rumus aritmatika di backup sesuai rumus matematika', buruk(kat(/^Rumus backup$/)).flatMap(ringkas), M.volume && M.volume.backup && M.volume.backup.length ? '' : 'Belum bisa dicek: backup volume tidak ada'),
     item('Overhead 13%', ovT, ovNa, OV && OV.nilai.length ? `${OV.dipakai} analisa` : '')
   ];
   const IC = { ok: '✓', x: '✗', na: '–' };
-  $('rcmeta').innerHTML = `<div class="ckp">${esc(P.nama || M.nama || '—')}</div><ul class="ceklist">${CL.map(c => `<li class="${c.st}"><span class="ic">${IC[c.st]}</span><span><b>${esc(c.label)}</b><small class="${c.st === 'x' ? 'ada' : ''}">${esc(c.det)}</small>${c.list.length ? `<ul class="ckt">${c.list.map(t => `<li>${msgH(t)}</li>`).join('')}</ul>` : ''}</span></li>`).join('')}</ul>`;
+  $('rcmeta').innerHTML = `<div class="ckp">${esc(P.nama || M.nama || '—')}</div><ul class="ceklist">${CL.map(c => `<li class="${c.st}"><span class="ic">${IC[c.st]}</span><span><b>${esc(c.label)}</b><small class="${c.st === 'x' ? 'ada' : ''}">${esc(c.det)}</small>${c.list.length ? `<ul class="ckt">${[...new Set(c.list)].map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</span></li>`).join('')}</ul>`;
   const order = { kritis: 0, penting: 1, info: 2 }, show = F.filter(f => !rcSev || f.tingkat === rcSev).sort((a, b) => ENGINE.kelompokRab(a) - ENGINE.kelompokRab(b) || order[a.tingkat] - order[b.tingkat]);
   $('rcttl').textContent = `Temuan RAB (${show.length})`;
   $('rclist').innerHTML = show.length ? show.map(f => `<article class="f ${f.tingkat}"><div class="h"><span class="tag sev">${f.tingkat[0].toUpperCase() + f.tingkat.slice(1)}</span><span class="tag">${esc(f.kat)}</span>${f.lok ? `<span class="lok">${esc(f.lok)}</span>` : ''}</div><div class="fm">${msgH(f.msg)}</div>${f.butir ? `<ol class="butir">${f.butir.map(b => `<li><span class="bt ${b.tingkat}">${b.tingkat}</span> ${msgH(b.msg)}${b.lok ? ` <small class="lok">${esc(b.lok)}</small>` : ''}${b.saran ? `<br><span class="bs">→ ${esc(b.saran)}</span>` : ''}</li>`).join('')}</ol>` : ''}${(f.saran || ENGINE.saranRab(f)) ? `<p class="sr">${msgH(f.saran || ENGINE.saranRab(f))}</p>` : ''}</article>`).join('') : `<div class="empty">${F.length ? 'Tidak ada temuan pada filter ini.' : 'Tidak ada temuan. RAB sesuai pemeriksaan otomatis.'}</div>`;
