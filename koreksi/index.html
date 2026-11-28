@@ -1855,7 +1855,7 @@ function analyzeRab(sheets, opt) {
 
   // ---- 1. Hitungan item, subtotal, total
   let items = [], seksi = [], cur = null, subs = [], totalRow = null, nolVol = [], tanpaUraian = [], ls = [], labelSeksi = {};
-  const body = g.slice(H.baris + 1);
+  const body = g.slice(H.baris + 1); let adaRom = false;
   for (const row of body) {
     const c = row.c, t = teksBaris(row, H), noV = H.no != null ? txt(c[H.no]) : '', vol = H.vol != null ? c[H.vol] : undefined, hs = c[H.hs], jm = c[H.jm];
     const semua = Object.values(c).map(txt).join(' ');
@@ -1866,7 +1866,7 @@ function analyzeRab(sheets, opt) {
     }
     if (/^(sub\s*)?(jumlah|total|sub\s*total)/i.test(semua.replace(/^\W+/, '')) || (isNum(jm) && !isNum(hs) && !isNum(vol) && !t)) { if (isNum(jm)) subs.push({ r: row.r, v: jm, items: items.filter(x => x.seksi === cur), cur }); continue; }
     const romawi = /^([IVX]+|[A-Z])\.?$/.test(noV) || (!noV && /^([IVX]+|[A-Z])\.?\s+[A-Z]/.test(t));
-    if (romawi && !isNum(hs) && t && t === t.toUpperCase()) { cur = { r: row.r, label: noV || t.split(/\s/)[0], judul: t.replace(/^([IVX]+|[A-Z])\.?\s+/, '') }; seksi.push(cur); const L = cur.label.replace(/\.$/, ''); (labelSeksi[L] = labelSeksi[L] || []).push(cur); continue; }
+    if (romawi && !isNum(hs) && !isNum(vol) && t && (noV || t === t.toUpperCase())) { const lab = noV || t.split(/\s/)[0], rom = /^[IVX]+\.?$/.test(lab) && (adaRom || /^I\.?$/.test(lab)); if (rom) adaRom = true; const lvl = rom || !adaRom ? 1 : 2; const par = lvl === 2 ? [...seksi].reverse().find(s => s.lvl === 1) : null; cur = { r: row.r, label: lab, judul: t.replace(/^([IVX]+|[A-Z])\.?\s+/, ''), v: isNum(jm) ? jm : null, lvl, par }; seksi.push(cur); const L = cur.label.replace(/\.$/, ''); (labelSeksi[L] = labelSeksi[L] || []).push(cur); continue; }
     if (!isNum(hs) && !isNum(jm)) continue;
     const it = { r: row.r, uraian: t, sat: H.sat != null ? txt(c[H.sat]) : '', vol: isNum(vol) ? vol : null, hs: isNum(hs) ? hs : null, jm: isNum(jm) ? jm : null, kode: H.kode != null ? txt(c[H.kode]) : '', seksi: cur, formula: (row.f || {})[H.jm] };
     items.push(it);
@@ -1886,6 +1886,18 @@ function analyzeRab(sheets, opt) {
       add('kritis', 'Hitungan', `Subtotal pekerjaan "${jd || 'tanpa judul'}" (baris ${s.r}) tertulis ${rp0(s.v)}, padahal jumlah item pekerjaannya ${rp0(dariItem)} (selisih ${rp0(s.v - dariItem)}). Item di bagian ini: ${(salahIt.length ? salahIt : s.items).slice(0, 8).map(x => `${x.uraian || 'item'} (baris ${x.r}) ${rp0(x.jm || 0)}${salahIt.includes(x) ? `, seharusnya ${rp0(x.vol * x.hs)}` : ''}`).join('; ')}${(salahIt.length ? salahIt : s.items).length > 8 ? '; …' : ''}.`, sel(sh, s.r, H.jm), salahIt.length ? 'Jumlah harga item yang ditandai tolong dihitung ulang (volume × harga satuan), lalu subtotalnya ikut dicek.' : 'Rumus subtotal bagian ini tolong dicek, pastikan menjumlah semua item di bagian tersebut dan tidak ada angka yang diketik manual.'); }
     jumSub += s.v;
   });
+  { // nilai jumlah yang ditulis di baris judul pekerjaan (format template: =SUM di baris judul)
+    const dlm = (x, s) => { for (let q = x.seksi; q; q = q.par) if (q === s) return true; return false; };
+    const dic = new Set(subs.filter(u => u.items.length).map(u => u.cur));
+    for (const s of seksi) {
+      if (s.v == null) continue; const its = items.filter(x => dlm(x, s)); if (!its.length) continue; dic.add(s);
+      if (subs.some(u => u.cur === s && u.items.length)) continue;
+      const dariItem = its.reduce((a, x) => a + (x.jm || 0), 0); if (!beda(s.v, dariItem, 2)) continue;
+      const salahIt = its.filter(x => x.vol != null && x.hs != null && x.jm != null && beda(x.vol * x.hs, x.jm, 1));
+      add('kritis', 'Hitungan', `Subtotal pekerjaan "${String(s.label).replace(/\.$/, '')}. ${s.judul}" (baris ${s.r}) tertulis ${rp0(s.v)}, padahal jumlah item pekerjaannya ${rp0(dariItem)} (selisih ${rp0(s.v - dariItem)}). Item di bagian ini: ${(salahIt.length ? salahIt : its).slice(0, 8).map(x => `${x.uraian || 'item'} (baris ${x.r}) ${rp0(x.jm || 0)}${salahIt.includes(x) ? `, seharusnya ${rp0(x.vol * x.hs)}` : ''}`).join('; ')}${(salahIt.length ? salahIt : its).length > 8 ? '; …' : ''}.`, sel(sh, s.r, H.jm), 'Rumus jumlah di baris judul pekerjaan ini tolong dicek, harus menjumlah semua item di bawahnya.');
+    }
+    meta.cekSubtotal = { seksi: seksi.length, dicek: dic.size };
+  }
   const sumItem = items.reduce((a, x) => a + (x.jm || 0), 0);
   meta.jumlah = sumItem; meta.jumlahItem = items.length;
   if (totalRow && beda(totalRow.v, sumItem, 2)) add('kritis', 'Hitungan', `Jumlah total RAB ${rp0(totalRow.v)}, padahal jumlah seluruh item ${rp0(sumItem)} (selisih ${rp0(totalRow.v - sumItem)}).`, sel(sh, totalRow.r, H.jm));
@@ -1930,7 +1942,7 @@ function analyzeRab(sheets, opt) {
   if (P.pagu && akhir && akhir > P.pagu + 0.5) add('kritis', 'Data DPA', `Total RAB ${rp0(akhir)} lewat dari pagu DPA ${rp0(P.pagu)} (lebih ${rp0(akhir - P.pagu)}).`, '', 'Total RAB tidak boleh lewat pagu ya, tolong volume/itemnya disesuaikan.');
   if (P.hps && akhir && Math.abs(akhir - P.hps) >= 1000) add('penting', 'Data DPA', `Total RAB ${rp0(akhir)} beda dengan HPS di FISIK MURNI ${rp0(P.hps)} (selisih ${rp0(akhir - P.hps)}).`, '', 'Nilai RAB dan HPS tolong disamakan, atau dijelaskan kenapa beda.');
   if (P.pagu && akhir && akhir <= P.pagu && P.pagu - akhir < 1000 && total > P.pagu) add('info', 'Data DPA', `Total RAB sebelum dibulatkan ${rp0(total)} sedikit di atas pagu; nilai akhirnya disamakan dengan pagu ${rp0(P.pagu)}. Tolong dicek, jangan sampai angkanya disesuaikan di luar perhitungan.`, '', 'Kalau memang lewat pagu, yang dikurangi volume/itemnya, bukan angka totalnya.');
-  if (ls.length) add('penting', 'Harga', `${ls.length} item lump sum (Ls) bernilai ≥ Rp1 juta tanpa kode analisa: ${ls.slice(0, 4).map(x => `"${x.uraian}" ${rp0(x.hs)}`).join(', ')}. Tolong dirinci perhitungannya, biar tidak jadi celah mark-up.`, sel(sh, ls[0].r, H.hs));
+  if (ls.length) add('penting', 'Harga', `${ls.length} item lump sum (Ls) bernilai ≥ Rp1 juta tanpa kode analisa: ${ls.slice(0, 8).map(x => `"${x.uraian}" ${rp0(x.hs)}`).join('; ')}${ls.length > 8 ? '; …' : ''}.`, sel(sh, ls[0].r, H.hs), 'Tolong dirinci perhitungannya, biar tidak jadi celah mark-up.');
 
   // ---- 2. AHSP & analisa
   const semuaTeks = sheets.map(s => (s.grid || []).slice(0, 60).map(r => Object.values(r.c).join(' ')).join(' ')).join(' ');
@@ -2007,8 +2019,8 @@ function analyzeRab(sheets, opt) {
     const ohSalah = salahAn.filter(x => /overhead/.test(x)), lainAn = salahAn.filter(x => !/overhead/.test(x));
     if (ohSalah.length) { const ef = [], tc = []; for (const [, b] of pakai) if (b.d && b.e && b.oh != null && beda(b.d * b.oh, b.e, 2)) { ef.push(b.e / b.d); tc.push(b.oh); } const md = a => a.sort((x, y) => x - y)[Math.floor(a.length / 2)]; add('kritis', 'Overhead', `Di ${ohSalah.length} analisa yang dipakai RAB, overhead & profit tidak sama dengan persentase yang tercantum (tercantum ${(md(tc) * 100).toFixed(0)}%, dihitung ±${(md(ef) * 100).toFixed(1)}%).`, '', ohSalah.slice(0, 8).join('; ')); }
     if (lainAn.length) add('kritis', 'Analisa', `${lainAn.length} hitungan di analisa yang dipakai RAB tidak cocok.`, '', lainAn.slice(0, 12).join('; ') + (lainAn.length > 12 ? '; …' : ''));
-    if (hargaBeda.length) add('penting', 'Harga', `${hargaBeda.length} harga upah di analisa berbeda dengan daftar upah di berkas yang sama.`, '', hargaBeda.slice(0, 10).join('; '));
-    if (mark.length) add('kritis', 'Mark-up', `${mark.length} harga satuan di RAB lebih tinggi dari hasil analisanya, mis. ${mark.slice(0, 3).map(m => `"${m.it.uraian}" ${rp0(m.it.hs)} vs analisa ${m.via === 'kode' ? m.kd : `"${m.b.nama}"`} ${rp0(m.b.f)}`).join('; ')}.`, sel(sh, mark[0].it.r, H.hs), mark.map(m => `baris ${m.it.r}: ${rp0(m.it.hs)} → ${rp0(m.b.f)} (+${((m.it.hs / m.b.f - 1) * 100).toFixed(1)}%)`).slice(0, 15).join('; '));
+    if (hargaBeda.length) add('penting', 'Harga', `${hargaBeda.length} harga upah di analisa berbeda dengan daftar upah di berkas yang sama: ${hargaBeda.slice(0, 10).join('; ')}${hargaBeda.length > 10 ? '; …' : ''}.`, '', 'Harga upah di analisa tolong disamakan dengan daftar upah ya.');
+    if (mark.length) add('kritis', 'Mark-up', `${mark.length} harga satuan di RAB lebih tinggi dari hasil analisanya: ${mark.slice(0, 10).map(m => `"${m.it.uraian}" (baris ${m.it.r}) ${rp0(m.it.hs)}, analisa ${m.via === 'kode' ? m.kd : `"${m.b.nama}"`} ${rp0(m.b.f)} (+${((m.it.hs / m.b.f - 1) * 100).toFixed(1).replace('.', ',')}%)`).join('; ')}${mark.length > 10 ? '; …' : ''}.`, sel(sh, mark[0].it.r, H.hs), 'Harga satuan di RAB tolong disamakan dengan hasil analisanya ya.');
     if (salahKode.length) add('kritis', 'Analisa', `${salahKode.length} item RAB memakai kode analisa milik pekerjaan lain, jadi harga satuannya tidak bisa ditelusuri.`, '', salahKode.slice(0, 8).join('; '));
     if (tak.length) add('penting', 'AHSP', `${tak.length} kode analisa di RAB tidak ada di sheet analisa (kemungkinan kode AHSP lama): ${tak.slice(0, 5).join('; ')}.`, '');
     const tanpa = items.filter(it => it.hs && it.vol && !/^ls$/i.test(it.sat)).length - [...items].filter(it => it.hs && it.vol).filter(it => { const kk = it.kode ? it.kode.replace(/\s+/g, '').replace(/\.$/, '') : ''; return (kk && an.has(kk)) || (it.uraian && namaAn.some(([, x]) => dice(it.uraian, x.nama) > 0.8)); }).length;
