@@ -2811,6 +2811,8 @@ function rabAlam() {
 }
 function rabRows() { let R = null; try { R = rcRes; } catch {} const rows = rab && R && R.meta && R.meta.material && R.meta.material.rows; return rows && rows.length ? rows : null; }
 const kunciRab = t => { for (const k in ENGINE.RAB_KUNCI) if (ENGINE.RAB_KUNCI[k].test(t)) { if (k === 'Semen Portland' && /mortar|instan|warna/i.test(t)) continue; return k; } return null; };
+const TK_ALIAS = [['Sekrup', /sekrup|skrup|screw|srew|baut atap|roofing/i], ['Dynabolt', /dyna\s*bol/i], ['Baut dan Mur', /\bbaut\b|\bmur\b|\bbolt\b/i], ['Paku', /\bpaku\b(?!.*keling)/i], ['Kawat Bendrat', /bendrat|kawat (beton|ikat|tali|bakar)/i], ['Hollow Galvalum', /hollow/i], ['Engsel', /engsel|hinge/i], ['Saklar', /sakl?ar|sakelar/i], ['Stop Kontak', /stop\s*kontak|kotak kontak/i], ['Pipa Conduit', /pipa listrik|conduit|konduit/i], ['Klem Pipa', /\bklem\b/i], ['Panel / Plafon PVC', /(panel|plafon|plafond|lis|list)\s*pvc/i], ['Semen Nat (Tile Grout)', /semen (warna|nat)|\bnat\b|grout/i], ['Sealant', /sealant|silicon|silikon/i], ['Thinner', /thinner|tiner|pengencer/i]];
+const aliasTk = t => { if (!DBTK) return null; const a = TK_ALIAS.find(([k, re]) => DBTK.m[k] && re.test(t)); return a ? a[0] : null; };
 const nmRab = x => String(x.kat || '').replace(/\s*\*\)\s*$/, '').replace(/\s+/g, ' ').trim();
 function rabTkdn() {
   const rows = rabRows(); if (!rows) return null;
@@ -2819,11 +2821,13 @@ function rabTkdn() {
     const nm = nmRab(x); if (!nm || /^air\b/i.test(nm)) return;
     const alamK = Object.keys(ALAM_RE).find(a => ALAM_RE[a].test(nm));
     if (alamK) { const t = tpl.find(r => /alam/i.test(r.status) && r.material.toLowerCase().trim() === alamK); const mat = t ? t.material : nm; if (by[mat.toLowerCase()]) { by[mat.toLowerCase()].rabNama.push(nm); return; } const o = tkEdit['*|' + mat] || {}; const v = { jenis: '*', material: mat, rabNama: [nm], spek: o.spek != null ? o.spek : (t ? t.spek : ''), status: 'Material alam', nilai: '100%', sertif: '', src: 'material alam', tambah: true, dariRab: true }; by[mat.toLowerCase()] = v; out.push(v); return; }
-    let k = kunciRab(nm); if (!k && /^cat\b/i.test(nm) && [x.namaAn].concat(x.anList || []).some(a => /tembok|dinding|plafon|plafond|beton|bata/i.test(String(a || '')))) k = 'Cat Tembok';
+    let k = kunciRab(nm); const catTembok = /^cat\b/i.test(nm) && [x.namaAn].concat(x.anList || []).some(a => /tembok|dinding|plafon|plafond|beton|bata/i.test(String(a || '')));
+    if (!k && /^cat\b/i.test(nm)) k = catTembok ? (/dasar|primer|alkali/i.test(nm) && DBTK && DBTK.m['Cat Dasar Tembok'] ? 'Cat Dasar Tembok' : 'Cat Tembok') : (DBTK && DBTK.m['Cat Kayu dan Besi'] ? 'Cat Kayu dan Besi' : null);
+    if (!k) k = aliasTk(nm);
     const mat = k || nm, key = mat.toLowerCase();
     if (by[key]) { if (!by[key].rabNama.some(q => q.toLowerCase() === nm.toLowerCase())) by[key].rabNama.push(nm); return; }
     const o = tkEdit['*|' + mat] || {}, d = k && DBTK ? dbPick(k, o.pid) : null;
-    const sp = k ? spekFor(k, '', '', o) : { spek: o.spek != null ? o.spek : '', src: o.spek != null ? 'isian' : '' };
+    let sp = k ? spekFor(k, '', '', o) : { spek: o.spek != null ? o.spek : '', src: o.spek != null ? 'isian' : '' }; if (!sp.spek && k) sp = { spek: nm, src: 'RAB' };
     const v = { jenis: '*', material: mat, rabNama: [nm], spek: sp.spek, spekSrc: sp.src, status: 'TKDN', nilai: o.nilai != null ? o.nilai : (d ? d.nilai : ''), sertif: o.sertif != null ? o.sertif : (d ? d.sertif : ''), pid: d ? d.pid : undefined, src: d ? 'database TKDN Kemenperin' : 'isian manual', tambah: true, dariRab: true };
     by[key] = v; out.push(v);
   });
