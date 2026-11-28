@@ -886,9 +886,9 @@ const RAB_KUNCI = {
   'Bata Merah': /bata merah|batu bata(?! ringan)|dinding\s+(1\/2|½|setengah)?\s*bata(?! ringan)|pasangan\s+bata(?! ringan)/i, 'Bata Ringan': /bata ringan|hebel|\bAAC\b|blok beton ringan/i, 'Rangka Atap Baja Ringan': /rangka atap|baja ringan|kanal C|\breng\b|truss/i,
   'Penutup Atap': /penutup atap|genteng|spandek|atap (metal|zincalume|galvalum|seng)/i, 'Kusen Aluminium': /kusen alum|aluminium|alumunium/i, 'Kaca': /\bkaca\b/i,
   'Keramik': /keramik|granit|homogeneous/i, 'Cat Tembok': /\bcat\b.*(tembok|dinding|emulsi|interior|eksterior)|pengecatan dinding/i, 'Plafon Gypsum': /gyps|gips/i,
-  'Kalsiboard / Papan Semen': /kalsi|GRC|fiber semen|papan semen/i, 'Kabel NYY': /\bNYY\b|NYFGBY/i, 'Kabel Listrik': /\bNYM\b|\bNYA\b|kabel listrik/i, 'MCB/Panel': /\bMCB\b|\bpanel\b|\bPHB\b/i,
+  'Kalsiboard / Papan Semen': /kalsi|GRC|fiber semen|papan semen/i, 'Kabel NYY': /\bNYY\b|NYFGBY/i, 'Kabel Listrik': /\bNYM\b|\bNYA\b|kabel listrik/i, 'MCB/Panel': /\bMCB\b|\bpanel\b(?!\s*(PVC|plafon|dinding|gypsum|akustik|surya|ACP|komposit))|\bPHB\b/i,
   'Lampu': /lampu (LED|TL|downlight|bohlam)|downlight|\bLED bulb/i, 'Armatur Lampu LED': /armatur|PJU|penerangan jalan|lampu jalan|street ?light|lampu taman|lampu trotoar/i, 'Besi Tiang Lampu': /tiang (lampu|PJU|besi|galvanis)/i,
-  'Besi Angkur': /angkur|anchor/i, 'Pipa PVC': /pipa (PVC|U?PVC)|\bPVC\b/i, 'Kloset': /kloset|closet/i, 'Paving Block': /paving/i, 'Kayu Lapis / Multipleks': /multipl|kayu lapis|plywood|triplek/i,
+  'Besi Angkur': /angkur|anchor/i, 'Pipa PVC': /pipa\s*u?PVC|^(?!.*\b(panel|plafon|lis|list|lantai|vinyl)\b).*\bPVC\b/i, 'Kloset': /kloset|closet/i, 'Paving Block': /paving/i, 'Kayu Lapis / Multipleks': /multipl|kayu lapis|plywood|triplek/i,
   'Pipa Galvanis': /pipa (galvanis|GIP|besi)/i, 'Mortar Instan': /mortar|semen instan|perekat bata/i,
 };
 const BUANG = /^(\d+[.)]?\s*)?((pengadaan|pemasangan|pekerjaan|pek\.?|pas(ang|\.)?|supply|install(asi)?|pembesian|penulangan|dengan|dan|&|\+|,|-|\/)\s*)+/i;
@@ -1429,12 +1429,14 @@ function analyze(model, opt = {}) {
     const head = rows[0]?.join(' ') || ''; if (!/TKDN/i.test(head)) return;
     const col = (k => k >= 0 ? k : rows[0].map((h, j) => /TKDN/i.test(h) ? j : -1).filter(j => j >= 0).pop())(rows[0].findIndex(h => /nilai/i.test(h) && /TKDN/i.test(h))), nm = Math.max(1, rows[0].findIndex(h => /identitas|barang|material|uraian/i.test(h))), cs = rows[0].findIndex(h => /spesifikasi/i.test(h)), cst = rows[0].findIndex(h => /status/i.test(h));
     const nilaiAkhir = {};
-    const used = new Set(), empty = [];
+    const used = new Set(), empty = [], hapus = [];
     rows.slice(1).forEach((r, k) => {
       const ri = k + 1, idx = paras.findIndex(p => p.tbl === ti && p.row === ri);
       if (isFootRow(r, rows[0])) return;
       if (!r.some(x => String(x).trim())) { if (r.length >= rows[0].length) empty.push(ri); return; }
       const it = POOL.map(x => ({ x, s: Math.max(dice(r[nm], x.material), normKey(r[nm]) && normKey(x.material).includes(normKey(r[nm])) ? 0.9 : 0) })).filter(o => o.s >= 0.8).sort((a, b) => b.s - a.s)[0]?.x;
+      const nmR = String(r[nm] || '').replace(/\s+/g, ' ').trim();
+      if (O.rabBahan && nmR && (/alam|pasir|batu|tanah|kerikil|sirtu/i.test(nmR + ' ' + (cst >= 0 ? r[cst] : '')) ? (O.rabAlam && !O.rabAlam.some(b => dice(b, nmR) >= 0.8 || normKey(nmR).includes(normKey(b)) || normKey(b).includes(normKey(nmR)))) : ((it ? it.skip : true) && !O.rabBahan.some(b => dice(b, nmR) >= 0.8 || (normKey(b) && normKey(nmR).includes(normKey(b))))))) { hapus.push({ ri, idx, nama: nmR }); if (it) used.add(it.material); return; }
       if (!it) return; used.add(it.material);
       if (cs >= 0 && it.spekSrc === 'RAB' && it.spek) {
         const lama = String(r[cs] || '').replace(/\s+/g, ' ').trim();
@@ -1453,8 +1455,10 @@ function analyze(model, opt = {}) {
       add('penting', 'TKDN', `Nilai TKDN "${r[nm]}" (${r[col] || 'kosong'}) belum sesuai ${it.src || 'template ' + TP.jenis}: ${it.nilai}${it.sertif ? ' — ' + it.sertif : ''}.`, idx, undefined, { fix: [{ label: `Isi dari ${it.src || 'template ' + TP.jenis}: ${it.nilai}`, rec: true, ops }], edit: false });
     });
     const numOps = []; let nn = 0;
-    rows.slice(1).forEach((r, k) => { if (isFootRow(r, rows[0]) || !r.some(x => String(x).trim())) return; nn++; if (!String(r[0] || '').trim() || String(r[0]).trim() !== String(nn)) numOps.push({ t: 'cell', i: paras.findIndex(p => p.tbl === ti && p.row === k + 1), c: 0, text: String(nn) }); });
-    if (numOps.length) add('info', 'TKDN', `Nomor urut tabel TKDN kosong atau tidak berurutan di ${numOps.length} baris.`, paras.findIndex(p => p.tbl === ti), undefined, { fix: [{ label: 'Nomori ulang berurutan', rec: true, ops: numOps }], edit: false });
+    const hRi = new Set(hapus.map(h => h.ri));
+    rows.slice(1).forEach((r, k) => { if (isFootRow(r, rows[0]) || !r.some(x => String(x).trim()) || hRi.has(k + 1)) return; nn++; if (!String(r[0] || '').trim() || String(r[0]).trim() !== String(nn)) numOps.push({ t: 'cell', i: paras.findIndex(p => p.tbl === ti && p.row === k + 1), c: 0, text: String(nn) }); });
+    if (hapus.length) add('penting', 'TKDN', `${hapus.length} material di tabel TKDN tidak ada di RAB: ${hapus.map(h => h.nama).join('; ')}.`, hapus[0].idx, undefined, { fix: [{ label: `Hapus ${hapus.length} baris material yang tidak ada di RAB`, rec: true, ops: hapus.map(h => ({ t: 'delrow', i: h.idx })).concat(numOps) }], edit: false });
+    else if (numOps.length) add('info', 'TKDN', `Nomor urut tabel TKDN kosong atau tidak berurutan di ${numOps.length} baris.`, paras.findIndex(p => p.tbl === ti), undefined, { fix: [{ label: 'Nomori ulang berurutan', rec: true, ops: numOps }], edit: false });
     const miss = TP.items.concat((O.tkdnExtra || []).filter(x => x.tambah && !TP.items.some(t => normKey(t.material) === normKey(x.material)))).filter(x => !used.has(x.material) && x.nilai && !x.skip && (/alam/i.test(x.status || '') || O.rabBahan || !LINGKUP || LINGKUP.has(x.material)));
     if (miss.length) {
       const i0 = paras.findIndex(p => p.tbl === ti), lastData = rows.map((r, ri) => ri > 0 && !isFootRow(r, rows[0]) && r.some(x => String(x).trim()) ? ri : -1).filter(x => x > 0).pop();
@@ -1464,7 +1468,7 @@ function analyze(model, opt = {}) {
     }
     // baris Total / % TKDN dihitung ulang
     const pctv = x => { const q = String(x || '').replace(/\s+/g, '').match(/(\d+(?:[.,]\d+)?)%/); return q ? parseFloat(q[1].replace(',', '.')) : null; };
-    const nilai = []; rows.forEach((r, ri) => { if (ri === 0 || isFootRow(r, rows[0])) return; const v = pctv(nilaiAkhir[ri] != null ? nilaiAkhir[ri] : r[col]); if (v != null) nilai.push(v); });
+    const nilai = []; rows.forEach((r, ri) => { if (ri === 0 || isFootRow(r, rows[0])) return; if (hRi.has(ri)) return; const v = pctv(nilaiAkhir[ri] != null ? nilaiAkhir[ri] : r[col]); if (v != null) nilai.push(v); });
     miss.forEach(x => { const v = pctv(x.nilai); if (v != null) nilai.push(v); });
     const foots = rows.map((r, ri) => ({ r, ri })).filter(o => o.ri > 0 && isFootRow(o.r, rows[0]));
     if (nilai.length && foots.length) {
@@ -2785,13 +2789,29 @@ let rab = null;
 function spekFor(mat, jenis, tplSpek, ed) {
   const k = dbKey(mat, jenis);
   if (ed && ed.spek != null) return { spek: ed.spek, src: 'isian' };
-  if (rab && k && rab.spek[k]) return { spek: rab.spek[k].spek, src: 'RAB' };
+  if (rabPunya(k)) return { spek: rab.spek[k].spek, src: 'RAB' };
   if (tplSpek) return { spek: tplSpek, src: 'template' };
   if (k && ENGINE.SPEK_UMUM[k]) return { spek: ENGINE.SPEK_UMUM[k], src: 'umum' };
   return { spek: '', src: '' };
 }
-function tkdnList() { const s = SRC(); if (!s) return null; return (s.tkdn || []).map(r => { const o = tkEdit[tkKey(r)] || {}; let v = Object.assign({}, r); const alam = /alam/i.test(r.status); if (!alam) { if (o.pid != null) { const d = dbPick(r.material, o.pid, r.jenis); if (d) v = Object.assign(v, d); } else if (!String(r.nilai).trim()) { const d = dbPick(r.material, null, r.jenis); if (d) v = Object.assign(v, d); } const sp = spekFor(r.material, r.jenis, r.spek, o); v.spek = sp.spek; v.spekSrc = sp.src; const k = dbKey(r.material, r.jenis); if (rab && !(k && rab.spek[k])) v.skip = true; } if (o.nilai != null) v.nilai = o.nilai; if (o.sertif != null) v.sertif = o.sertif; return v; }); }
-function tkdnExtra() { if (!DBTK) return null; const s = SRC(), dipakai = new Set(((s && s.tkdn) || []).map(r => dbKey(r.material, r.jenis)).filter(Boolean)); return Object.keys(DBTK.m).map(k => { const d = dbPick(k, (tkEdit['*|' + k] || {}).pid); if (!d) return null; const sp = spekFor(k, '', '', tkEdit['*|' + k]); return { jenis: '*', material: k, spek: sp.spek, spekSrc: sp.src, status: 'TKDN', nilai: d.nilai, sertif: d.sertif, src: 'database TKDN Kemenperin', kunci: [], tambah: !!(rab && rab.spek[k] && !dipakai.has(k)) }; }).filter(Boolean); }
+function rabPunya(k) {
+  if (!rab || !k || !rab.spek[k]) return false;
+  let R = null; try { R = rcRes; } catch {}
+  const rows = R && R.meta && R.meta.material && R.meta.material.rows;
+  if (!rows || !rows.length) return true;
+  const re = ENGINE.RAB_KUNCI[k]; if (!re) return true;
+  return rows.some(x => [x.kat, x.nama, x.namaAn].some(t => t && re.test(String(t))));
+}
+const ALAM_RE = { 'batu gunung': /batu\s*(gunung|kali|belah)/i, 'batu pecah': /batu\s*pecah|split|kerikil|koral|agregat kasar/i, 'pasir pasang': /pasir\s*pasang/i, 'pasir beton': /pasir\s*(beton|cor)|agregat halus/i, 'pasir urug': /pasir\s*urug/i, 'tanah urug': /tanah\s*(urug|timbun|biasa|liat)/i, 'sirtu': /sirtu/i };
+function rabAlam() {
+  let R = null; try { R = rcRes; } catch {}
+  const rows = rab && R && R.meta && R.meta.material && R.meta.material.rows; if (!rows || !rows.length) return null;
+  const s = SRC(), nama = [...new Set(((s && s.tkdn) || []).filter(r => /alam/i.test(r.status)).map(r => r.material))];
+  return nama.filter(m => { const re = ALAM_RE[m.toLowerCase().trim()] || new RegExp(m.replace(/[^a-z0-9 ]/gi, '').trim().split(/\s+/).join('\\s*'), 'i'); return rows.some(x => [x.kat, x.nama, x.namaAn].some(t => t && re.test(String(t)))); });
+}
+function rabBahan() { return rab ? Object.keys(rab.spek).filter(rabPunya) : null; }
+function tkdnList() { const s = SRC(); if (!s) return null; const RA = rabAlam(); return (s.tkdn || []).map(r => { const o = tkEdit[tkKey(r)] || {}; let v = Object.assign({}, r); const alam = /alam/i.test(r.status); if (alam && RA && !RA.includes(r.material)) v.skip = true; if (!alam) { if (o.pid != null) { const d = dbPick(r.material, o.pid, r.jenis); if (d) v = Object.assign(v, d); } else if (!String(r.nilai).trim()) { const d = dbPick(r.material, null, r.jenis); if (d) v = Object.assign(v, d); } const sp = spekFor(r.material, r.jenis, r.spek, o); v.spek = sp.spek; v.spekSrc = sp.src; const k = dbKey(r.material, r.jenis); if (rab && !rabPunya(k)) v.skip = true; } if (o.nilai != null) v.nilai = o.nilai; if (o.sertif != null) v.sertif = o.sertif; return v; }); }
+function tkdnExtra() { if (!DBTK) return null; const s = SRC(), dipakai = new Set(((s && s.tkdn) || []).map(r => dbKey(r.material, r.jenis)).filter(Boolean)); return Object.keys(DBTK.m).map(k => { const d = dbPick(k, (tkEdit['*|' + k] || {}).pid); if (!d) return null; const sp = spekFor(k, '', '', tkEdit['*|' + k]); return { jenis: '*', material: k, spek: sp.spek, spekSrc: sp.src, status: 'TKDN', nilai: d.nilai, sertif: d.sertif, src: 'database TKDN Kemenperin', kunci: [], tambah: !!(rab && rabPunya(k) && !dipakai.has(k)) }; }).filter(Boolean); }
 const mcpP = (window.claude && window.claude.use) ? window.claude.use('mcp').catch(() => null) : Promise.resolve(null);
 const pl = r => r && (r.payload ?? r);
 const vals = r => { const p = pl(r); return (p && (p.values || p.content?.values)) || []; };
@@ -2903,7 +2923,7 @@ let alatInfo = null;
 function alatMaster() { const s = SRC(); const m = s && s.fisik && s.fisik.alat; return (m && m.length) ? m : ENGINE.ALAT_KAITAN.map(a => ({ jenis: a[0], kapasitas: '', jumlah: '1 (satu) Unit' })); }
 function alatFor(meta, paket) {
   const master = alatMaster(), key = (paket && paket.nama) || meta.namaPaket || '-';
-  const teks = [...(meta.uraian || []), (paket && paket.nama) || meta.namaPaket].concat(rab ? Object.keys(rab.spek) : []);
+  const teks = [...(meta.uraian || []), (paket && paket.nama) || meta.namaPaket].concat(rabBahan() || []);
   const sar = ENGINE.saranAlat(teks, master);
   const find = j => master.find(m => m.jenis.toLowerCase().replace(/\s+/g, '') === String(j).toLowerCase().replace(/\s+/g, ''));
   let src, names;
@@ -2932,7 +2952,7 @@ function renderAlat() {
   }));
 }
 function renderTk(jenis) {
-  const box = $('tkbox'), list = (tkdnList() || []).filter(r => r.jenis === jenis);
+  const box = $('tkbox'), list = (tkdnList() || []).filter(r => r.jenis === jenis && !r.skip);
   if (!jenis || !list.length) { box.hidden = true; box.innerHTML = ''; return; }
   if (box.contains(document.activeElement)) return;
   const kosong = list.filter(r => !/alam/i.test(r.status) && !String(r.nilai).trim()).length;
@@ -3118,7 +3138,7 @@ async function rcLoad(f) {
   if (!f) return; $('rcerr').textContent = '';
   if (!/\.xlsx?$/i.test(f.name)) { $('rcerr').textContent = 'RAB harus file Excel (.xlsx atau .xls).'; return; }
   $('rclbl').textContent = 'Membaca ' + f.name + '…';
-  try { rcSheets = await ENGINE.parseXlsx(await f.arrayBuffer()); rcFile = f.name; $('rcsheet').innerHTML = '<option>—</option>'; rcSev = null; rabCek(); $('rclbl').textContent = 'RAB: ' + f.name + ' (klik untuk ganti)'; toast(`${rcRes.findings.length} temuan pada RAB`); }
+  try { rcSheets = await ENGINE.parseXlsx(await f.arrayBuffer()); rcFile = f.name; $('rcsheet').innerHTML = '<option>—</option>'; rcSev = null; rabCek(); if (model) run(); $('rclbl').textContent = 'RAB: ' + f.name + ' (klik untuk ganti)'; toast(`${rcRes.findings.length} temuan pada RAB`); }
   catch (err) { $('rcerr').textContent = 'RAB tidak terbaca: ' + (err.message || err); $('rclbl').textContent = 'Pilih atau seret file RAB konsultan (.xlsx / .xls)'; }
 }
 $('rcsheet').addEventListener('change', () => { if (rcSheets) { rabCek(); toast('Sheet RAB diganti'); } });
@@ -3212,7 +3232,7 @@ function run() {
   if (rabSheets) rabPakai(curPaket?.nama || r0.meta.namaPaket);
   if (curPaket && !curPaket.hps && r0.meta.hps) { curPaket.hps = r0.meta.hps; curPaket.hpsSrc = 'dari spek'; }
   if (uraianEdit[urKey()]) opt.uraian = uraianEdit[urKey()];
-  opt.paket = curPaket; opt.tkdn = tkdnList(); opt.tkdnExtra = tkdnExtra(); opt.alat = alatFor(r0.meta, curPaket); opt.masa = { pel: parseInt(curPaket?.masa) || 0, pem: parseInt(curPaket?.pelihara) || 0 }; opt.rabBahan = rab ? Object.keys(rab.spek) : null;
+  opt.paket = curPaket; opt.tkdn = tkdnList(); opt.tkdnExtra = tkdnExtra(); opt.alat = alatFor(r0.meta, curPaket); opt.masa = { pel: parseInt(curPaket?.masa) || 0, pem: parseInt(curPaket?.pelihara) || 0 }; opt.rabBahan = rabBahan(); opt.rabAlam = rabAlam();
   res = (curPaket || opt.tkdn) ? ENGINE.analyze(model, opt) : r0;
   if (rcRes) setTimeout(rcRender);
   lastAlat = opt.alat; fillPaketForm(curPaket); fillUraian(res.meta, curPaket); renderAlat(); renderTk(res.meta.tkdnJenis); $('pTk').value = res.meta.tkdnJenis || (SRC() ? 'tidak ada yang cocok' : ''); $('sTk').textContent = res.meta.tkdnJenis ? 'TEMPLATE TKDN' : '';
