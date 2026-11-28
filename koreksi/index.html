@@ -164,7 +164,7 @@ h3.kel{margin:18px 0 6px;font-size:16px}.ckp{font-weight:600;margin:4px 0 8px}.c
 .srcset{margin-top:10px}.srcset summary{cursor:pointer;font-weight:600;color:var(--navy);min-height:40px;padding:8px 0}
 .rek{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;color:var(--navy);background:var(--acc);border-radius:6px;padding:1px 7px;vertical-align:1px;white-space:nowrap}
 .autobtn{width:100%;min-height:52px!important;font-size:16px!important}
-#rv{position:fixed;inset:0;background:#0f1e3d80;z-index:60;display:flex;align-items:flex-end;justify-content:center}#rv[hidden]{display:none}
+#rv{position:fixed;inset:0;background:#0f1e3d80;z-index:60;display:flex;align-items:flex-end;justify-content:center}#rv[hidden]{display:none}.counts[hidden]{display:none}
 #rvbox{width:min(760px,100%);max-height:90vh;background:#fff;border-radius:18px 18px 0 0;display:flex;flex-direction:column;box-shadow:0 -10px 40px #0004;overflow:hidden}
 @media(min-width:760px){#rv{align-items:center}#rvbox{border-radius:18px;max-height:86vh}}
 .rvh{background:var(--navy);color:#fff;padding:14px 18px;border-bottom:5px solid var(--acc)}.rvh b{font:800 18px Montserrat,Inter,sans-serif;text-transform:uppercase;letter-spacing:.02em}.rvh small{display:block;color:#dbe3ff;font-size:13.5px;margin-top:2px}
@@ -311,7 +311,7 @@ h3.kel{margin:18px 0 6px;font-size:16px}.ckp{font-weight:600;margin:4px 0 8px}.c
       <div class="file" id="rcname" hidden></div>
       <select id="rcsheet" hidden style="width:100%;min-height:42px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font:15px Inter;background:var(--field);margin:4px 0 8px"><option>—</option></select>
       <div id="rcmeta"></div>
-      <div class="counts">
+      <div class="counts" hidden>
         <button class="cnt k" data-rsev="kritis" aria-pressed="false"><span class="num" id="rnk">0</span><span>Kritis</span></button>
         <button class="cnt p" data-rsev="penting" aria-pressed="false"><span class="num" id="rnp">0</span><span>Penting</span></button>
         <button class="cnt i" data-rsev="info" aria-pressed="false"><span class="num" id="rni">0</span><span>Info</span></button>
@@ -2172,11 +2172,38 @@ function pecahMsg(m) {
   parts = parts.map(p => p.replace(/\.\s*$/, '').replace(/^dan\s+/, '')).filter(p => p && p !== '…');
   return [head, parts, tail];
 }
+function ringkasRumus(f) {
+  const m = f.msg, n = (m.match(/^(\d+)/) || [])[1], q = (m.match(/"([^"]+)"/) || [])[1] || '';
+  const R = [
+    [/^Jumlah harga "/, () => `Jumlah harga "${q}" ≠ volume × harga satuan`],
+    [/^Subtotal pekerjaan/, () => `Subtotal "${q}" tidak sama dengan jumlah itemnya` + ((m.match(/\(selisih ([^)]+)\)/) || [])[1] ? ` (selisih ${m.match(/\(selisih ([^)]+)\)/)[1]})` : '')],
+    [/^Jumlah total RAB/, () => 'Jumlah total RAB tidak sama dengan jumlah item'],
+    [/^Jumlah di rekapitulasi/, () => 'Jumlah di rekap tidak sama dengan RAB'],
+    [/^Jumlah setelah PPN/, () => 'Jumlah setelah PPN salah'],
+    [/^PPN /, () => 'PPN bukan 12% × 11/12 (efektif 11%)'],
+    [/^Baris PPN tidak ketemu/, () => 'Baris PPN tidak ada'],
+    [/lebih besar dari total/, () => 'Pembulatan ke atas (harus ke bawah)'],
+    [/^Pembulatan .* terlalu jauh/, () => 'Pembulatan terlalu jauh dari total'],
+    [/^Terbilang "/, () => 'Terbilang tidak sesuai angka total'],
+    [/^Terbilang total RAB tidak ditemukan/, () => 'Terbilang tidak ada'],
+    [/^Huruf\/nomor bagian/, () => `Nomor bagian "${q}" dipakai dobel`],
+    [/sel jumlah harga diketik manual/, () => `${n} jumlah harga diketik, bukan rumus`],
+    [/baris RAB berisi error Excel/, () => `${n} baris RAB berisi error Excel`],
+    [/rumus jumlah harga merujuk sel yang salah/, () => `${n} rumus jumlah harga salah sel`],
+    [/rumus SUM subtotal tidak mencakup/, () => `${n} SUM subtotal tidak mencakup semua item`],
+    [/harga satuan di RAB diketik manual|harga satuan di RAB diketik langsung/, () => `${n} harga satuan diketik, tidak link ke analisa`],
+    [/harga satuannya kosong/, () => `${n} item harga satuannya kosong`],
+    [/jumlah harga di RAB tidak pakai rumus/, () => `${n} jumlah harga tidak pakai rumus`],
+    [/belum punya/, () => m.split(/[.:]/)[0]]
+  ];
+  for (const [re, fn] of R) if (re.test(m)) return fn();
+  return m.split(/[.:](\s|$)/)[0].slice(0, 90);
+}
 function gabungRumus(F) {
   const i0 = KELOMPOK.findIndex(k => k[0] === 'Rumus & hitungan'), ini = F.filter(f => kelompokRab(f) === i0);
   if (ini.length < 2) return F;
   const ord = { kritis: 0, penting: 1, info: 2 }; ini.sort((a, b) => ord[a.tingkat] - ord[b.tingkat]);
-  const g = { tingkat: ini[0].tingkat, kat: 'Rumus & hitungan', msg: `Ada ${ini.length} catatan soal rumus dan hitungan:`, lok: '', saran: 'Tolong dicek dan diperbaiki semua poin di atas ya, lalu total RAB-nya dihitung ulang.', butir: ini.map(f => ({ tingkat: f.tingkat, kat: f.kat, msg: f.msg, lok: f.lok, saran: f.saran || saranRab(f) })) };
+  const g = { tingkat: ini[0].tingkat, kat: 'Rumus & hitungan', msg: 'Rumus & hitungan yang perlu dibetulkan:', lok: '', saran: 'Tolong dibetulkan, lalu total RAB-nya dihitung ulang ya.', butir: ini.map(f => ({ tingkat: f.tingkat, kat: f.kat, msg: ringkasRumus(f), lok: f.lok, singkat: true })) };
   const out = F.filter(f => kelompokRab(f) !== i0); out.push(g); return out;
 }
 function saranRab(f) {
@@ -3007,7 +3034,7 @@ function rcRender() {
   $('rcmeta').innerHTML = `<div class="ckp">${esc(P.nama || M.nama || '—')}</div><ul class="ceklist">${CL.map(c => `<li class="${c.st}"><span class="ic">${IC[c.st]}</span><span><b>${esc(c.label)}</b><small class="${c.st === 'x' ? 'ada' : ''}">${esc(c.det)}</small>${c.list.length ? `<ul class="ckt">${[...new Set(c.list)].map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</span></li>`).join('')}</ul>`;
   const order = { kritis: 0, penting: 1, info: 2 }, show = F.filter(f => !rcSev || f.tingkat === rcSev).sort((a, b) => ENGINE.kelompokRab(a) - ENGINE.kelompokRab(b) || order[a.tingkat] - order[b.tingkat]);
   $('rcttl').textContent = `Temuan RAB (${show.length})`;
-  $('rclist').innerHTML = show.length ? show.map(f => `<article class="f ${f.tingkat}"><div class="h"><span class="tag sev">${f.tingkat[0].toUpperCase() + f.tingkat.slice(1)}</span><span class="tag">${esc(f.kat)}</span>${f.lok ? `<span class="lok">${esc(f.lok)}</span>` : ''}</div><div class="fm">${msgH(f.msg)}</div>${f.butir ? `<ol class="butir">${f.butir.map(b => `<li><span class="bt ${b.tingkat}">${b.tingkat}</span> ${msgH(b.msg)}${b.lok ? ` <small class="lok">${esc(b.lok)}</small>` : ''}${b.saran ? `<br><span class="bs">→ ${esc(b.saran)}</span>` : ''}</li>`).join('')}</ol>` : ''}${(f.saran || ENGINE.saranRab(f)) ? `<p class="sr">${msgH(f.saran || ENGINE.saranRab(f))}</p>` : ''}</article>`).join('') : `<div class="empty">${F.length ? 'Tidak ada temuan pada filter ini.' : 'Tidak ada temuan. RAB sesuai pemeriksaan otomatis.'}</div>`;
+  $('rclist').innerHTML = show.length ? show.map(f => `<article class="f ${f.tingkat}"><div class="h"><span class="tag sev">${f.tingkat[0].toUpperCase() + f.tingkat.slice(1)}</span><span class="tag">${esc(f.kat)}</span>${f.lok ? `<span class="lok">${esc(f.lok)}</span>` : ''}</div><div class="fm">${msgH(f.msg)}</div>${f.butir ? `<ol class="butir">${f.butir.map(b => `<li>${b.singkat ? esc(b.msg) : `<span class="bt ${b.tingkat}">${b.tingkat}</span> ${msgH(b.msg)}`}${b.lok ? ` <small class="lok">${esc(b.lok)}</small>` : ''}${b.saran ? `<br><span class="bs">→ ${esc(b.saran)}</span>` : ''}</li>`).join('')}</ol>` : ''}${(f.saran || ENGINE.saranRab(f)) ? `<p class="sr">${msgH(f.saran || ENGINE.saranRab(f))}</p>` : ''}</article>`).join('') : `<div class="empty">${F.length ? 'Tidak ada temuan pada filter ini.' : 'Tidak ada temuan. RAB sesuai pemeriksaan otomatis.'}</div>`;
   const ST = { atas_ssh: ['up', 'Di atas SSH'], atas_wilayah: ['up', 'Di atas harga online'], bawah_wilayah: ['', 'Jauh di bawah harga online'], wajar: ['ok', 'Wajar'], tanpa: ['', 'Belum ada pembanding'] };
   const HW = ENGINE.HARGA_WILAYAH, wil = x => { const w = HW[x.kunci] || (x.kunci.startsWith('besi_') ? HW.besi : null); if (!w) return null; const a = (w.psr || []).filter(v => typeof v === 'number'); return a.length ? [Math.min(...a) * x.fak, Math.max(...a) * x.fak] : null; };
   const rng = r => r ? rp(r[0]) + (r[1] !== r[0] ? ' – ' + rp(r[1]) : '') : '—';
